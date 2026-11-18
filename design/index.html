@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DaunPOS — Design Preview</title>
+<style>
+  :root{
+    --green-deep:#1F5C43; --green:#6FC08D; --green-soft:#E7F4EA;
+    --mint:#C9EDD6; --ink:#14251E; --ink-soft:#6E8078; --line:#E6EBE3; --bg:#F5F7F2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{padding:40px 32px 24px;background:linear-gradient(160deg,#184936,#2C7457);color:#fff}
+  header h1{margin:0 0 6px;font-size:30px;letter-spacing:-.6px}
+  header p{margin:0;color:#A9D9BE;font-size:14px;max-width:60ch;line-height:1.6}
+  .tokens{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .tok{display:flex;align-items:center;gap:7px;background:#ffffff1a;border-radius:999px;padding:5px 12px;font-size:11px;color:#EAF6EE}
+  .tok i{width:11px;height:11px;border-radius:50%;display:block}
+  main{padding:32px;max-width:1400px;margin:0 auto}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);margin:8px 0 18px;font-weight:600}
+  section{margin-bottom:44px}
+  .grid{display:grid;gap:26px}
+  .phone{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .tablet{grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
+  figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 6px 20px #14251e0d}
+  figure img{width:100%;display:block;border-radius:12px;background:var(--bg)}
+  figcaption{margin-top:10px;font-size:12.5px;font-weight:600;color:var(--ink)}
+  figcaption span{display:block;font-weight:400;font-size:11px;color:var(--ink-soft);margin-top:2px}
+  a{color:var(--green-deep)}
+  footer{padding:0 32px 48px;max-width:1400px;margin:0 auto;font-size:12px;color:var(--ink-soft);line-height:1.7}
+</style>
+</head>
+<body>
+<header>
+  <h1>DaunPOS</h1>
+  <p>Design kit aplikasi kasir kafe untuk Android — smartphone &amp; tablet. Desain mengikuti PRD DaunPOS: POS cepat, laporan penjualan, manajemen menu, pembayaran multi-metode, dan pengaturan printer thermal.</p>
+  <div class="tokens">
+    <span class="tok"><i style="background:#1F5C43"></i>#1F5C43 deep</span>
+    <span class="tok"><i style="background:#6FC08D"></i>#6FC08D green</span>
+    <span class="tok"><i style="background:#E7F4EA"></i>#E7F4EA soft</span>
+    <span class="tok"><i style="background:#C9EDD6"></i>#C9EDD6 mint</span>
+    <span class="tok"><i style="background:#14251E"></i>#14251E ink</span>
+    <span class="tok"><i style="background:#F5F7F2"></i>#F5F7F2 bg</span>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>Phone — 390 px</h2>
+    <div class="grid phone">
+      <figure><img src="phone/01-login.png" alt="Login"><figcaption>Login &amp; Koneksi<span>PIN kasir + brand</span></figcaption></figure>
+      <figure><img src="phone/02-pos-kasir.png" alt="POS"><figcaption>POS / Kasir<span>Kategori, grid menu, keranjang</span></figcaption></figure>
+      <figure><img src="phone/03-pembayaran.png" alt="Pembayaran"><figcaption>Pembayaran<span>Tunai, QRIS, Transfer + kembalian</span></figcaption></figure>
+      <figure><img src="phone/04-transaksi-berhasil.png" alt="Berhasil"><figcaption>Transaksi Berhasil<span>Cetak struk / kirim WhatsApp</span></figcaption></figure>
+      <figure><img src="phone/05-laporan-penjualan.png" alt="Laporan"><figcaption>Laporan Penjualan<span>KPI, grafik, riwayat</span></figcaption></figure>
+      <figure><img src="phone/06-detail-transaksi.png" alt="Detail"><figcaption>Detail Transaksi<span>Reprint struk</span></figcaption></figure>
+      <figure><img src="phone/07-manajemen-menu.png" alt="Menu"><figcaption>Manajemen Menu<span>Search, toggle stok, FAB</span></figcaption></figure>
+      <figure><img src="phone/08-pengaturan-printer.png" alt="Printer"><figcaption>Pengaturan Printer<span>Bluetooth/USB/LAN, 58/80mm</span></figcaption></figure>
+      <figure><img src="phone/09-kustomisasi-struk.png" alt="Struk"><figcaption>Kustomisasi Struk<span>Live preview thermal</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tablet — 1024 px</h2>
+    <div class="grid tablet">
+      <figure><img src="tablet/01-login.png" alt="Login tablet"><figcaption>Login<span>Split screen brand + keypad</span></figcaption></figure>
+      <figure><img src="tablet/02-pos-kasir.png" alt="POS tablet"><figcaption>POS / Kasir<span>Grid 4 kolom + panel keranjang</span></figcaption></figure>
+      <figure><img src="tablet/03-pembayaran.png" alt="Pembayaran tablet"><figcaption>Pembayaran<span>Rincian pesanan + kartu bayar</span></figcaption></figure>
+      <figure><img src="tablet/04-transaksi-berhasil.png" alt="Berhasil tablet"><figcaption>Transaksi Berhasil<span>Ringkasan + pratinjau struk</span></figcaption></figure>
+      <figure><img src="tablet/05-laporan-penjualan.png" alt="Laporan tablet"><figcaption>Laporan Penjualan<span>4 KPI, grafik, menu terlaris, tabel</span></figcaption></figure>
+      <figure><img src="tablet/06-detail-transaksi.png" alt="Detail tablet"><figcaption>Detail Transaksi<span>Tabel item + info pembayaran</span></figcaption></figure>
+      <figure><img src="tablet/07-manajemen-menu.png" alt="Menu tablet"><figcaption>Manajemen Menu<span>Tabel menu + toggle stok</span></figcaption></figure>
+      <figure><img src="tablet/08-pengaturan-printer.png" alt="Printer tablet"><figcaption>Pengaturan Printer<span>Pemindai + pengaturan cetak</span></figcaption></figure>
+      <figure><img src="tablet/09-kustomisasi-struk.png" alt="Struk tablet"><figcaption>Kustomisasi Struk<span>Preview besar + form</span></figcaption></figure>
+    </div>
+  </section>
+</main>
+<footer>
+  File project: <a href="DaunPOS.pen">DaunPOS.pen</a> · PDF: <a href="DaunPOS-semua-halaman.pdf">DaunPOS-semua-halaman.pdf</a><br>
+  Font: Plus Jakarta Sans (heading), Inter (body), IBM Plex Mono (struk).
+</footer>
+</body>
+</html>
