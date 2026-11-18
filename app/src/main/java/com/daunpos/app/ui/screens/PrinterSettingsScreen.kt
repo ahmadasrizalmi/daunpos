@@ -86,7 +86,7 @@ fun PrinterSettingsScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val bluetooth by vm.bluetoothState.collectAsState()
     val receipt by vm.receiptSettings.collectAsState()

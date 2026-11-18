@@ -64,7 +64,7 @@ fun LoginScreen(
     onLogin: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     var pin by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(UserRole.KASIR) }

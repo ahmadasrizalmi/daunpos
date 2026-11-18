@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.Button
@@ -75,7 +76,7 @@ fun PaymentScreen(
     onSuccess: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val cart by vm.cart.collectAsState()
     val tableNumber by vm.selectedTable.collectAsState()
@@ -88,6 +89,9 @@ fun PaymentScreen(
     var cashInput by remember { mutableStateOf("") }
     val cashReceived = cashInput.toIntOrNull() ?: 0
     val change = cashReceived - total
+
+    // Prevent double submission
+    var isSubmitting by remember { mutableStateOf(false) }
 
     // QRIS state
     var qrisChecking by remember { mutableStateOf(false) }
@@ -104,9 +108,62 @@ fun PaymentScreen(
     }
 
     fun submitCheckout() {
+        if (isSubmitting) return
+        isSubmitting = true
         val cash = if (method == PaymentMethod.CASH) cashReceived else null
         val id = vm.checkout(method, cash, tableNumber)
         onSuccess(id)
+    }
+
+    // Guard: Jika keranjang kosong
+    if (cart.isEmpty()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Bg)
+                .statusBarsPadding()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali", tint = Ink)
+                }
+                Text("Pembayaran", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🛒", fontSize = 54.sp)
+                    Spacer(Modifier.height(14.dp))
+                    Text("Keranjang Masih Kosong", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Silakan pilih menu pesanan terlebih dahulu sebelum masuk ke proses bayar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = InkSoft,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = onBack,
+                        colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Kembali ke Kasir", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        return
     }
 
     Column(
@@ -153,7 +210,7 @@ fun PaymentScreen(
                 // Left: Order Summary & Bill
                 Box(
                     modifier = Modifier
-                        .weight(0.42f)
+                        .weight(0.44f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.White)
@@ -161,7 +218,9 @@ fun PaymentScreen(
                         .padding(20.dp)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
@@ -186,13 +245,10 @@ fun PaymentScreen(
 
                             Spacer(Modifier.height(18.dp))
 
-                            Text("Rincian Pesanan", style = MaterialTheme.typography.titleMedium, color = Ink)
+                            Text("Rincian Pesanan", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(10.dp))
 
-                            Column(
-                                modifier = Modifier.verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 cart.forEach { item ->
                                     Row(Modifier.fillMaxWidth()) {
                                         Text("${item.quantity}x ${item.product.name}", style = MaterialTheme.typography.bodyMedium, color = Ink, modifier = Modifier.weight(1f))
@@ -203,7 +259,7 @@ fun PaymentScreen(
                         }
 
                         // Breakdown footer
-                        Column {
+                        Column(Modifier.padding(top = 16.dp)) {
                             Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
                             Spacer(Modifier.height(10.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -229,31 +285,37 @@ fun PaymentScreen(
                 // Right: Payment Methods & Actions
                 Box(
                     modifier = Modifier
-                        .weight(0.58f)
+                        .weight(0.56f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.White)
                         .border(1.dp, Line, RoundedCornerShape(20.dp))
                         .padding(24.dp)
                 ) {
-                    PaymentOptionsContent(
-                        method = method,
-                        onSelectMethod = { method = it },
-                        total = total,
-                        cashInput = cashInput,
-                        onChangeCashInput = { cashInput = it },
-                        change = change,
-                        qrisCountdown = qrisCountdown,
-                        qrisChecking = qrisChecking,
-                        qrisPaid = qrisPaid,
-                        onSimulateQrisPaid = {
-                            qrisChecking = true
-                            qrisPaid = true
-                            qrisChecking = false
-                            submitCheckout()
-                        },
-                        onSubmit = { submitCheckout() }
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        PaymentOptionsContent(
+                            method = method,
+                            onSelectMethod = { method = it },
+                            total = total,
+                            cashInput = cashInput,
+                            onChangeCashInput = { cashInput = it },
+                            change = change,
+                            qrisCountdown = qrisCountdown,
+                            qrisChecking = qrisChecking,
+                            qrisPaid = qrisPaid,
+                            onSimulateQrisPaid = {
+                                qrisChecking = true
+                                qrisPaid = true
+                                qrisChecking = false
+                                submitCheckout()
+                            },
+                            onSubmit = { submitCheckout() }
+                        )
+                    }
                 }
             }
         } else {
@@ -294,7 +356,7 @@ fun PaymentScreen(
                         .padding(16.dp)
                 ) {
                     Column {
-                        Text("Rincian Pesanan · $tableNumber", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text("Rincian Pesanan · $tableNumber", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         cart.forEach { item ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
@@ -371,7 +433,12 @@ private fun PaymentOptionsContent(
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.height(6.dp))
-                        Text(m.label, style = MaterialTheme.typography.labelMedium, color = if (active) GreenDeep else Ink, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                        Text(
+                            m.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (active) GreenDeep else Ink,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                        )
                     }
                 }
             }
@@ -379,6 +446,25 @@ private fun PaymentOptionsContent(
 
         when (method) {
             PaymentMethod.CASH -> {
+                // Info Laci Kasir Offline
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GreenSoft)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.PointOfSale, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Kasir Langsung (Offline) · Laci kasir akan terbuka otomatis saat selesai",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GreenDeep,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
                 OutlinedTextField(
                     value = cashInput,
                     onValueChange = { v -> onChangeCashInput(v.filter { it.isDigit() }.take(8)) },
@@ -396,14 +482,25 @@ private fun PaymentOptionsContent(
                     )
                 )
 
-                // Quick buttons
+                // Quick amount buttons
+                val quickAmounts = remember(total) {
+                    val list = mutableListOf<Pair<String, Int>>()
+                    list.add("Uang Pas" to total)
+                    val next50k = (((total + 49999) / 50000) * 50000).coerceAtLeast(50000)
+                    if (next50k != total && next50k > total) {
+                        list.add(formatRupiah(next50k) to next50k)
+                    }
+                    if (total < 100000) {
+                        list.add("Rp 100.000" to 100000)
+                    }
+                    if (total < 200000) {
+                        list.add("Rp 200.000" to 200000)
+                    }
+                    list.take(4)
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        "Uang Pas" to total,
-                        "Rp50.000" to 50000,
-                        "Rp100.000" to 100000,
-                        "Rp200.000" to 200000
-                    ).forEach { (label, amount) ->
+                    quickAmounts.forEach { (label, amount) ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -414,7 +511,13 @@ private fun PaymentOptionsContent(
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(label, style = MaterialTheme.typography.labelSmall, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GreenDeep,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
@@ -457,7 +560,7 @@ private fun PaymentOptionsContent(
 
                         Spacer(Modifier.height(14.dp))
 
-                        // Realistic Monospace QR Code Art / Dynamic Box
+                        // Realistic Monospace QR Code Box
                         Box(
                             modifier = Modifier
                                 .size(180.dp)
@@ -541,7 +644,15 @@ private fun PaymentOptionsContent(
             ),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Text("Selesaikan Transaksi", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(
+                when (method) {
+                    PaymentMethod.CASH -> "Selesaikan Pembayaran Tunai"
+                    PaymentMethod.QRIS -> "Konfirmasi Transaksi QRIS"
+                    PaymentMethod.TRANSFER -> "Konfirmasi Transfer Bank"
+                },
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
         }
     }
 }

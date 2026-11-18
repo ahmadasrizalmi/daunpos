@@ -78,7 +78,7 @@ fun ReportsScreen(
     onOpenDetail: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val transactions by vm.transactions.collectAsState()
     var filter by remember { mutableStateOf("Hari Ini") }

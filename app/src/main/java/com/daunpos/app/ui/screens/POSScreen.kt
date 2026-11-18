@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -85,7 +86,7 @@ fun POSScreen(
     onPrinterSettings: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val products by vm.products.collectAsState()
     val cart by vm.cart.collectAsState()
@@ -469,6 +470,7 @@ fun POSScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 200.dp)
+                                .verticalScroll(rememberScrollState())
                         ) {
                             cart.forEach { item ->
                                 CartItemRow(

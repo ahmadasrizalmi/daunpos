@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -68,11 +69,30 @@ fun SuccessScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val transactions by vm.transactions.collectAsState()
+    val lastTx by vm.lastTransaction.collectAsState()
     val settings by vm.receiptSettings.collectAsState()
-    val tx = transactions.find { it.id == transactionId } ?: return
+    val tx = (if (lastTx?.id == transactionId) lastTx else null)
+        ?: transactions.find { it.id == transactionId }
+
+    if (tx == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Bg)
+                .statusBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Green)
+                Spacer(Modifier.height(16.dp))
+                Text("Menyiapkan struk transaksi…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+            }
+        }
+        return
+    }
 
     var scale by remember { mutableStateOf(0.4f) }
     val animatedScale by animateFloatAsState(

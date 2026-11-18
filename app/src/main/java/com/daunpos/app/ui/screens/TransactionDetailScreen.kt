@@ -78,12 +78,33 @@ fun TransactionDetailScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
     val scope = rememberCoroutineScope()
 
     val transactions by vm.transactions.collectAsState()
+    val lastTx by vm.lastTransaction.collectAsState()
     val settings by vm.receiptSettings.collectAsState()
-    val tx = transactions.find { it.id == transactionId } ?: return
+    val tx = (if (lastTx?.id == transactionId) lastTx else null)
+        ?: transactions.find { it.id == transactionId }
+
+    if (tx == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Bg)
+                .statusBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Transaksi tidak ditemukan", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Green)) {
+                    Text("Kembali", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        return
+    }
     val success = tx.status == "SUKSES"
     val time = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale("id", "ID")).format(Date(tx.dateTime))
 

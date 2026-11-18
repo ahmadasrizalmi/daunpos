@@ -76,7 +76,7 @@ fun MainScreen(
     onNavigate: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     var selected by remember { mutableStateOf(0) }
     val bluetooth by vm.bluetoothState.collectAsState()

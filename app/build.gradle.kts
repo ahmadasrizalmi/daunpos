@@ -13,14 +13,14 @@ android {
         applicationId = "com.daunpos.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     signingConfigs {
         // Keystore tidak di-commit ke repo (lihat .gitignore).
         // Untuk rilis, sediakan keystore/daunpos-release.jks secara lokal atau via CI secret.
-        val keystoreFile = file("../keystore/daunpos-release.jks")
+        val keystoreFile = rootProject.file("keystore/daunpos-release.jks")
         if (keystoreFile.exists()) {
             create("release") {
                 storeFile = keystoreFile

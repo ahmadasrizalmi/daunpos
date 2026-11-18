@@ -60,6 +60,9 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     private val _activeShift = MutableStateFlow<ShiftRecord?>(null)
     val activeShift: StateFlow<ShiftRecord?> = _activeShift.asStateFlow()
 
+    private val _lastTransaction = MutableStateFlow<Transaction?>(null)
+    val lastTransaction: StateFlow<Transaction?> = _lastTransaction.asStateFlow()
+
     val cartCount: Int get() = _cart.value.sumOf { it.quantity }
     val cartSubtotal: Int get() = _cart.value.sumOf { it.product.price * it.quantity }
     val cartTax: Int
@@ -220,6 +223,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
             note = note,
             tableNumber = tableNumber
         )
+        _lastTransaction.value = tx
         viewModelScope.launch { repository.insertTransaction(tx) }
 
         // Cetak otomatis bila diaktifkan dan printer terhubung.
@@ -230,6 +234,9 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         clearCart()
         return tx.id
     }
+
+    fun getTransaction(id: String): Transaction? =
+        _lastTransaction.value?.takeIf { it.id == id } ?: transactions.value.find { it.id == id }
 
     fun cancelTransaction(id: String) {
         viewModelScope.launch { repository.cancelTransaction(id) }

@@ -65,7 +65,7 @@ fun ReceiptCustomizationScreen(
     onBack: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.screenWidthDp >= 700
+    val isTablet = config.smallestScreenWidthDp >= 600
 
     val settings by vm.receiptSettings.collectAsState()
 
