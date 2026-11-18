@@ -9,8 +9,10 @@ data class Product(
     val category: String,
     val price: Int,
     val available: Boolean = true,
+    val stock: Int = 50,
     val emoji: String = "🍽️",
-    val colorHex: Long = 0xFFE7F4EA
+    val colorHex: Long = 0xFFE7F4EA,
+    val imageUrl: String? = null
 )
 
 data class CartItem(
@@ -40,13 +42,29 @@ data class Transaction(
     val dateTime: Long,
     val items: List<OrderItem>,
     val subtotal: Int,
-    val tax: Int,
+    val discount: Int = 0,
+    val tax: Int = 0,
     val total: Int,
     val paymentMethod: PaymentMethod,
     val cashReceived: Int? = null,
     val change: Int? = null,
     val status: String = "SUKSES",
-    val note: String = ""
+    val note: String = "",
+    val tableNumber: String = "Take Away"
+)
+
+data class ShiftRecord(
+    val id: String,
+    val cashierName: String,
+    val startTime: Long,
+    val endTime: Long? = null,
+    val startCash: Int,
+    val endCash: Int? = null,
+    val totalCashSales: Int = 0,
+    val totalQrisSales: Int = 0,
+    val totalTransferSales: Int = 0,
+    val totalTransactions: Int = 0,
+    val status: String = "OPEN"
 )
 
 data class ReceiptSettings(
@@ -55,6 +73,7 @@ data class ReceiptSettings(
     val cashDrawer: Boolean = false,
     val showLogo: Boolean = true,
     val showQR: Boolean = true,
+    val taxPercentage: Int = 0,
     val headerLines: List<String> = listOf(
         "DaunPOS Coffee & Eatery",
         "Jl. Daun Hijau No. 8, Bandung",
@@ -87,12 +106,17 @@ data class User(
         get() = if (role == UserRole.OWNER) "Pemilik" else "Kasir"
 }
 
-fun formatRupiah(amount: Int): String {
-    val nf = NumberFormat.getNumberInstance(Locale("id", "ID"))
-    return "Rp" + nf.format(amount.toLong())
+object CurrencyUtils {
+    fun formatRupiah(amount: Int): String {
+        val nf = NumberFormat.getNumberInstance(Locale("id", "ID"))
+        return "Rp " + nf.format(amount.toLong())
+    }
+
+    fun formatNumber(amount: Int): String {
+        val nf = NumberFormat.getNumberInstance(Locale("id", "ID"))
+        return nf.format(amount.toLong())
+    }
 }
 
-fun formatNumber(amount: Int): String {
-    val nf = NumberFormat.getNumberInstance(Locale("id", "ID"))
-    return nf.format(amount.toLong())
-}
+fun formatRupiah(amount: Int): String = CurrencyUtils.formatRupiah(amount)
+fun formatNumber(amount: Int): String = CurrencyUtils.formatNumber(amount)

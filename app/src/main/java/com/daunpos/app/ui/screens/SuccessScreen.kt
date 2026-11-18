@@ -1,5 +1,7 @@
 package com.daunpos.app.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -23,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -41,12 +44,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.formatRupiah
 import com.daunpos.app.ui.receipt.ReceiptPreview
+import com.daunpos.app.ui.receipt.buildReceiptText
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Green
 import com.daunpos.app.ui.theme.GreenDeep
@@ -60,6 +66,10 @@ fun SuccessScreen(
     transactionId: String,
     onNewTransaction: () -> Unit
 ) {
+    val context = LocalContext.current
+    val config = LocalConfiguration.current
+    val isTablet = config.screenWidthDp >= 700
+
     val transactions by vm.transactions.collectAsState()
     val settings by vm.receiptSettings.collectAsState()
     val tx = transactions.find { it.id == transactionId } ?: return
@@ -72,94 +82,197 @@ fun SuccessScreen(
     )
     LaunchedEffect(Unit) { scale = 1f }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Bg)
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(30.dp))
-
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .scale(animatedScale)
-                .clip(CircleShape)
-                .background(Green),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+    fun shareWhatsApp() {
+        val text = buildReceiptText(tx, settings)
+        val sendIntent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("https://api.whatsapp.com/send?text=" + Uri.encode(text))
         }
+        runCatching { context.startActivity(sendIntent) }
+    }
 
-        Spacer(Modifier.height(18.dp))
-        Text("Transaksi Berhasil!", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
-        Text(tx.id, style = MaterialTheme.typography.bodyMedium, color = InkSoft)
-
-        Spacer(Modifier.height(22.dp))
-
-        // Summary
-        Box(
+    if (isTablet) {
+        // Tablet Wide Layout
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color.White)
-                .border(1.dp, Line, RoundedCornerShape(18.dp))
-                .padding(16.dp)
+                .fillMaxSize()
+                .background(Bg)
+                .padding(32.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
         ) {
-            Column {
-                SummaryRow("Total", formatRupiah(tx.total), bold = true)
-                SummaryRow("Metode", tx.paymentMethod.label)
-                tx.cashReceived?.let { SummaryRow("Tunai", formatRupiah(it)) }
-                tx.change?.let { SummaryRow("Kembalian", formatRupiah(it)) }
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        // Receipt preview
-        ReceiptPreview(tx = tx, settings = settings)
-
-        Spacer(Modifier.height(18.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { vm.printReceipt(tx) },
-                modifier = Modifier.weight(1f).height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+            // Left Column: Status & Actions
+            Column(
+                modifier = Modifier
+                    .weight(0.5f)
+                    .fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Icon(Icons.Filled.Print, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Cetak Struk", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .scale(animatedScale)
+                        .clip(CircleShape)
+                        .background(Green),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(52.dp))
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Text("Pembayaran Berhasil!", style = MaterialTheme.typography.headlineMedium, color = Ink, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("${tx.id} · ${tx.tableNumber}", style = MaterialTheme.typography.bodyLarge, color = InkSoft)
+
+                Spacer(Modifier.height(24.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color.White)
+                        .border(1.dp, Line, RoundedCornerShape(18.dp))
+                        .padding(18.dp)
+                ) {
+                    Column {
+                        SummaryRow("Total", formatRupiah(tx.total), bold = true)
+                        SummaryRow("Metode", tx.paymentMethod.label)
+                        tx.cashReceived?.let { SummaryRow("Tunai", formatRupiah(it)) }
+                        tx.change?.let { SummaryRow("Kembalian", formatRupiah(it)) }
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { vm.printReceipt(tx) },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+                    ) {
+                        Icon(Icons.Filled.Print, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cetak Struk", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        onClick = { shareWhatsApp() },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Kirim WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                Button(
+                    onClick = onNewTransaction,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenDeep, contentColor = Color.White),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Transaksi Baru", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
             }
-            OutlinedButton(
-                onClick = { /* mock whatsapp */ },
-                modifier = Modifier.weight(1f).height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+
+            // Right Column: Thermal receipt preview
+            Box(
+                modifier = Modifier
+                    .weight(0.5f)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                Text("Kirim WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                ReceiptPreview(tx = tx, settings = settings)
             }
         }
-
-        Spacer(Modifier.height(10.dp))
-
-        Button(
-            onClick = onNewTransaction,
+    } else {
+        // Phone Layout
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-            shape = RoundedCornerShape(16.dp)
+                .fillMaxSize()
+                .background(Bg)
+                .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Transaksi Baru", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
+            Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(20.dp))
+            Box(
+                modifier = Modifier
+                    .size(90.dp)
+                    .scale(animatedScale)
+                    .clip(CircleShape)
+                    .background(Green),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(46.dp))
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text("Transaksi Berhasil!", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("${tx.id} · ${tx.tableNumber}", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+
+            Spacer(Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White)
+                    .border(1.dp, Line, RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Column {
+                    SummaryRow("Total", formatRupiah(tx.total), bold = true)
+                    SummaryRow("Metode", tx.paymentMethod.label)
+                    tx.cashReceived?.let { SummaryRow("Tunai", formatRupiah(it)) }
+                    tx.change?.let { SummaryRow("Kembalian", formatRupiah(it)) }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            ReceiptPreview(tx = tx, settings = settings)
+
+            Spacer(Modifier.height(18.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { vm.printReceipt(tx) },
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+                ) {
+                    Icon(Icons.Filled.Print, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cetak Struk", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = { shareWhatsApp() },
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+                ) {
+                    Text("WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Button(
+                onClick = onNewTransaction,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GreenDeep, contentColor = Color.White),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Transaksi Baru", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        }
     }
 }
 
@@ -169,10 +282,9 @@ private fun SummaryRow(label: String, value: String, bold: Boolean = false) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, style = if (bold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium, color = InkSoft)
-        Spacer(Modifier.weight(1f))
-        Text(value, style = if (bold) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium, color = if (bold) GreenDeep else Ink, fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = Ink, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
     }
 }

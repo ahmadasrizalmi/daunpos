@@ -9,18 +9,19 @@ import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.PrinterSettings
 import com.daunpos.app.data.Product
 import com.daunpos.app.data.ReceiptSettings
+import com.daunpos.app.data.ShiftRecord
 import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.User
 import com.daunpos.app.data.UserRole
 import com.daunpos.app.printer.BluetoothPrinterManager
 import com.daunpos.app.printer.BluetoothPrinterState
 import com.daunpos.app.printer.ThermalPrinter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,7 +29,7 @@ import kotlinx.coroutines.withContext
 class DaunPOSViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DaunPOSApplication
-    private val repository = app.repository
+    val repository = app.repository
 
     val products: StateFlow<List<Product>> =
         repository.products.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -44,16 +45,29 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val _cashier = MutableStateFlow("Kasir")
+    private val _cashier = MutableStateFlow("Ayu · Kasir Pagi")
     val cashier: StateFlow<String> = _cashier.asStateFlow()
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
 
+    private val _selectedTable = MutableStateFlow("Meja 04")
+    val selectedTable: StateFlow<String> = _selectedTable.asStateFlow()
+
+    private val _discount = MutableStateFlow(0)
+    val discount: StateFlow<Int> = _discount.asStateFlow()
+
+    private val _activeShift = MutableStateFlow<ShiftRecord?>(null)
+    val activeShift: StateFlow<ShiftRecord?> = _activeShift.asStateFlow()
+
     val cartCount: Int get() = _cart.value.sumOf { it.quantity }
     val cartSubtotal: Int get() = _cart.value.sumOf { it.product.price * it.quantity }
-    val cartTax: Int get() = 0
-    val cartTotal: Int get() = cartSubtotal + cartTax
+    val cartTax: Int
+        get() {
+            val taxable = (cartSubtotal - _discount.value).coerceAtLeast(0)
+            return (taxable * receiptSettings.value.taxPercentage) / 100
+        }
+    val cartTotal: Int get() = (cartSubtotal - _discount.value).coerceAtLeast(0) + cartTax
 
     init {
         // Sinkronkan status koneksi printer ke pengaturan tersimpan.
@@ -81,6 +95,11 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
                 printerManager.connect(saved.deviceAddress)
             }
         }
+
+        // Muat active shift
+        viewModelScope.launch {
+            _activeShift.value = repository.getActiveShift()
+        }
     }
 
     suspend fun login(pin: String, role: UserRole): User? = withContext(Dispatchers.Default) {
@@ -88,9 +107,13 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         val user = repository.authenticate(username, pin)
         if (user != null) {
             _currentUser.value = user
-            _cashier.value = if (user.role == UserRole.OWNER) "Pemilik" else "Kasir"
+            _cashier.value = if (user.role == UserRole.OWNER) "Pemilik" else "Ayu · Kasir Pagi"
         }
         user
+    }
+
+    suspend fun verifyOwnerPin(pin: String): Boolean = withContext(Dispatchers.Default) {
+        repository.authenticate("owner", pin) != null
     }
 
     fun logout() {
@@ -99,12 +122,22 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         _cashier.value = "Kasir"
     }
 
+    fun setTable(table: String) {
+        _selectedTable.value = table
+    }
+
+    fun setDiscount(amount: Int) {
+        _discount.value = amount
+    }
+
     // ---------- Cart ----------
     fun addToCart(product: Product) {
+        if (!product.available || product.stock <= 0) return
         _cart.update { current ->
             val existing = current.find { it.product.id == product.id }
             if (existing != null) {
-                current.map { if (it.product.id == product.id) it.copy(quantity = it.quantity + 1) else it }
+                if (existing.quantity >= product.stock) current
+                else current.map { if (it.product.id == product.id) it.copy(quantity = it.quantity + 1) else it }
             } else {
                 current + CartItem(product = product, quantity = 1)
             }
@@ -112,8 +145,14 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun increment(productId: String) {
+        val product = products.value.find { it.id == productId }
         _cart.update { current ->
-            current.map { if (it.product.id == productId) it.copy(quantity = it.quantity + 1) else it }
+            current.map {
+                if (it.product.id == productId) {
+                    val max = product?.stock ?: 99
+                    if (it.quantity < max) it.copy(quantity = it.quantity + 1) else it
+                } else it
+            }
         }
     }
 
@@ -133,6 +172,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearCart() {
         _cart.value = emptyList()
+        _discount.value = 0
     }
 
     // ---------- Products ----------
@@ -154,7 +194,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ---------- Transactions ----------
-    fun checkout(paymentMethod: PaymentMethod, cashReceived: Int?): String {
+    fun checkout(paymentMethod: PaymentMethod, cashReceived: Int?, tableNumber: String = _selectedTable.value, note: String = ""): String {
         val items = _cart.value.map {
             OrderItem(
                 productId = it.product.id,
@@ -170,12 +210,15 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
             dateTime = System.currentTimeMillis(),
             items = items,
             subtotal = cartSubtotal,
+            discount = _discount.value,
             tax = cartTax,
             total = cartTotal,
             paymentMethod = paymentMethod,
             cashReceived = cashReceived,
             change = if (cashReceived != null) cashReceived - cartTotal else null,
-            status = "SUKSES"
+            status = "SUKSES",
+            note = note,
+            tableNumber = tableNumber
         )
         viewModelScope.launch { repository.insertTransaction(tx) }
 
@@ -190,6 +233,21 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     fun cancelTransaction(id: String) {
         viewModelScope.launch { repository.cancelTransaction(id) }
+    }
+
+    // ---------- Shift Management ----------
+    fun startShift(cashierName: String, startCash: Int) {
+        viewModelScope.launch {
+            _activeShift.value = repository.openShift(cashierName, startCash)
+        }
+    }
+
+    fun endShift(endCash: Int) {
+        val shift = _activeShift.value ?: return
+        viewModelScope.launch {
+            val closed = repository.closeShift(shift.id, endCash, transactions.value)
+            _activeShift.value = null
+        }
     }
 
     // ---------- Settings ----------

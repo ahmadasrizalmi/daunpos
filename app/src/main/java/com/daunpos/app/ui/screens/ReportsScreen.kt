@@ -23,7 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Print
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -39,12 +38,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +77,9 @@ fun ReportsScreen(
     vm: DaunPOSViewModel,
     onOpenDetail: (String) -> Unit
 ) {
+    val config = LocalConfiguration.current
+    val isTablet = config.screenWidthDp >= 700
+
     val transactions by vm.transactions.collectAsState()
     var filter by remember { mutableStateOf("Hari Ini") }
     var exportMenu by remember { mutableStateOf(false) }
@@ -106,14 +109,15 @@ fun ReportsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Bg),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Header & Export
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Laporan Penjualan", style = MaterialTheme.typography.headlineSmall, color = Ink)
-                    Text("Pantau performa kafe kamu", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                    Text("Laporan Penjualan", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("Kafe Daun · Pantau performa bisnis harian", style = MaterialTheme.typography.bodySmall, color = InkSoft)
                 }
                 Box {
                     IconButton(onClick = { exportMenu = true }) {
@@ -124,7 +128,7 @@ fun ReportsScreen(
                         onDismissRequest = { exportMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Unduh PDF") },
+                            text = { Text("Unduh PDF Laporan") },
                             onClick = {
                                 exportMenu = false
                                 scope.launch {
@@ -164,27 +168,41 @@ fun ReportsScreen(
                             .clickable { filter = f }
                             .padding(horizontal = 16.dp, vertical = 9.dp)
                     ) {
-                        Text(f, color = if (active) Color.White else Ink, style = MaterialTheme.typography.labelLarge, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium)
+                        Text(
+                            f,
+                            color = if (active) Color.White else Ink,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                        )
                     }
                 }
             }
         }
 
-        // Summary cards
+        // Summary cards: 4 cards in a row for tablet, 2x2 for phone
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Total Pendapatan", formatRupiah(totalRevenue), "💰", Modifier.weight(1f))
-                MetricCard("Transaksi", txCount.toString(), "🧾", Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Item Terjual", itemsSold.toString(), "📦", Modifier.weight(1f))
-                MetricCard("Menu Terlaris", bestSeller, "⭐", Modifier.weight(1f))
+            if (isTablet) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    MetricCard("Total Pendapatan", formatRupiah(totalRevenue), "💰", Modifier.weight(1f))
+                    MetricCard("Jumlah Transaksi", "$txCount order", "🧾", Modifier.weight(1f))
+                    MetricCard("Item Terjual", "$itemsSold porsi", "📦", Modifier.weight(1f))
+                    MetricCard("Menu Terlaris", bestSeller, "⭐", Modifier.weight(1f))
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Total Pendapatan", formatRupiah(totalRevenue), "💰", Modifier.weight(1f))
+                        MetricCard("Transaksi", txCount.toString(), "🧾", Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Item Terjual", itemsSold.toString(), "📦", Modifier.weight(1f))
+                        MetricCard("Menu Terlaris", bestSeller, "⭐", Modifier.weight(1f))
+                    }
+                }
             }
         }
 
-        // Chart
+        // Chart & Trend
         item {
             Box(
                 modifier = Modifier
@@ -192,19 +210,19 @@ fun ReportsScreen(
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color.White)
                     .border(1.dp, Line, RoundedCornerShape(18.dp))
-                    .padding(16.dp)
+                    .padding(20.dp)
             ) {
                 Column {
-                    Text("Tren Penjualan", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("Tren Penjualan", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(14.dp))
                     SalesBarChart(filtered)
                 }
             }
         }
 
-        // Transaction list
+        // Transaction list / Table
         item {
-            Text("Riwayat Transaksi", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text("Riwayat Transaksi", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
         }
 
         items(filtered, key = { it.id }) { tx ->
@@ -233,12 +251,12 @@ private fun MetricCard(label: String, value: String, emoji: String, modifier: Mo
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, Line, RoundedCornerShape(18.dp))
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, fontSize = 16.sp)
-                Spacer(Modifier.width(6.dp))
+                Text(emoji, fontSize = 18.sp)
+                Spacer(Modifier.width(8.dp))
                 Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             }
             Spacer(Modifier.height(8.dp))
@@ -267,16 +285,17 @@ private fun SalesBarChart(transactions: List<Transaction>) {
                 .height(140.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Belum ada data grafik", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+            Text("Belum ada data grafik untuk periode ini.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
         }
         return
     }
 
     Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
         val gap = 14.dp.toPx()
-        val barWidth = (size.width - gap * (grouped.size - 1)) / grouped.size
+        val count = grouped.size.coerceAtLeast(1)
+        val barWidth = ((size.width - gap * (count - 1)) / count).coerceIn(16.dp.toPx(), 48.dp.toPx())
         grouped.entries.forEachIndexed { index, entry ->
-            val barHeight = (entry.value.toFloat() / maxValue) * (size.height - 40.dp.toPx())
+            val barHeight = (entry.value.toFloat() / maxValue) * (size.height - 30.dp.toPx())
             val x = index * (barWidth + gap)
             val y = size.height - barHeight
             drawRoundRect(
@@ -315,7 +334,18 @@ private fun TransactionRow(tx: Transaction, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(tx.id, style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tx.id, style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Bg)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(tx.tableNumber, fontSize = 10.sp, color = InkSoft, fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(Modifier.height(2.dp))
             Text("$time • ${tx.paymentMethod.label}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
         }

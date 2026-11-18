@@ -11,8 +11,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Database(
-    entities = [ProductEntity::class, TransactionEntity::class, UserEntity::class],
-    version = 1,
+    entities = [ProductEntity::class, TransactionEntity::class, UserEntity::class, ShiftEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class DaunPOSDatabase : RoomDatabase() {
@@ -20,10 +20,12 @@ abstract class DaunPOSDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun transactionDao(): TransactionDao
     abstract fun userDao(): UserDao
+    abstract fun shiftDao(): ShiftDao
 
     companion object {
         fun build(context: Context): DaunPOSDatabase =
             Room.databaseBuilder(context, DaunPOSDatabase::class.java, "daunpos.db")
+                .fallbackToDestructiveMigration()
                 .addCallback(SeedCallback)
                 .build()
     }
@@ -37,22 +39,63 @@ abstract class DaunPOSDatabase : RoomDatabase() {
 
         private fun seedProducts(db: SupportSQLiteDatabase) {
             val products = listOf(
-                arrayOf<Any?>("P001", "Espresso", "Kopi", 18000, 1, "☕", 0xFFE7F4EA),
-                arrayOf<Any?>("P002", "Americano", "Kopi", 22000, 1, "🫘", 0xFFEFE7D6),
-                arrayOf<Any?>("P003", "Cappuccino", "Kopi", 28000, 1, "🥛", 0xFFE7F4EA),
-                arrayOf<Any?>("P004", "Cafe Latte", "Kopi", 30000, 1, "☕", 0xFFF2E9DE),
-                arrayOf<Any?>("P005", "Es Teh Manis", "Non-Kopi", 12000, 1, "🧋", 0xFFE8F1FA),
-                arrayOf<Any?>("P006", "Lemon Tea", "Non-Kopi", 18000, 1, "🍋", 0xFFFBF3D9),
-                arrayOf<Any?>("P007", "Nasi Goreng Spesial", "Makanan Berat", 35000, 1, "🍛", 0xFFFBE9DC),
-                arrayOf<Any?>("P008", "Mie Goreng Jawa", "Makanan Berat", 32000, 1, "🍜", 0xFFFBE9DC),
-                arrayOf<Any?>("P009", "Croissant Butter", "Snack", 22000, 1, "🥐", 0xFFF5EFDF),
-                arrayOf<Any?>("P010", "Kentang Goreng", "Snack", 25000, 0, "🍟", 0xFFFBF3D9),
-                arrayOf<Any?>("P011", "Cheesecake Lemon", "Dessert", 32000, 1, "🍰", 0xFFFCE9E4),
-                arrayOf<Any?>("P012", "Brownies Cokelat", "Dessert", 25000, 1, "🍫", 0xFFEFE3DC)
+                // id, name, category, price, available, stock, emoji, colorHex, imageUrl
+                arrayOf<Any?>(
+                    "P001", "Es Kopi Daun", "Kopi", 22000, 1, 45, "☕", 0xFFE7F4EA,
+                    "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P002", "Americano", "Kopi", 20000, 1, 30, "🫘", 0xFFEFE7D6,
+                    "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P003", "Cappuccino", "Kopi", 28000, 1, 25, "🥛", 0xFFE7F4EA,
+                    "https://images.unsplash.com/photo-1587080413959-06b859fb107d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P004", "Cafe Latte", "Kopi", 30000, 1, 35, "☕", 0xFFF2E9DE,
+                    "https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P005", "Matcha Latte", "Non-Kopi", 28000, 1, 20, "🍵", 0xFFE8F6ED,
+                    "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P006", "Es Teh Manis", "Non-Kopi", 12000, 1, 80, "🧋", 0xFFE8F1FA,
+                    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P007", "Lemon Tea", "Non-Kopi", 18000, 1, 40, "🍋", 0xFFFBF3D9,
+                    "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P008", "Nasi Goreng Spesial", "Makanan Berat", 35000, 1, 15, "🍛", 0xFFFBE9DC,
+                    "https://images.unsplash.com/photo-1603133872878-684f208fb84b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P009", "Mie Goreng Jawa", "Makanan Berat", 32000, 1, 18, "🍜", 0xFFFBE9DC,
+                    "https://images.unsplash.com/photo-1612927601601-6638404737ce?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P010", "Butter Croissant", "Snack", 22000, 1, 20, "🥐", 0xFFF5EFDF,
+                    "https://images.unsplash.com/photo-1555507036-ab1f4038808a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P011", "Kentang Goreng", "Snack", 25000, 0, 0, "🍟", 0xFFFBF3D9,
+                    "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P012", "Cheesecake Lemon", "Dessert", 32000, 1, 12, "🍰", 0xFFFCE9E4,
+                    "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                ),
+                arrayOf<Any?>(
+                    "P013", "Brownies Cokelat", "Dessert", 25000, 1, 16, "🍫", 0xFFEFE3DC,
+                    "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                )
             )
             products.forEach { p ->
                 db.execSQL(
-                    "INSERT OR IGNORE INTO products (id, name, category, price, available, emoji, colorHex) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO products (id, name, category, price, available, stock, emoji, colorHex, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     p
                 )
             }
@@ -74,6 +117,8 @@ abstract class DaunPOSDatabase : RoomDatabase() {
 
         private fun seedTransactions(db: SupportSQLiteDatabase) {
             val now = System.currentTimeMillis()
+            val dayMs = 24L * 60 * 60 * 1000
+
             fun item(id: String, name: String, price: Int, qty: Int, emoji: String) =
                 JSONObject().apply {
                     put("productId", id)
@@ -89,69 +134,58 @@ abstract class DaunPOSDatabase : RoomDatabase() {
                 items: List<JSONObject>,
                 method: String,
                 cash: Int?,
-                status: String
+                status: String,
+                table: String
             ) {
                 val subtotal = items.sumOf { it.getInt("price") * it.getInt("quantity") }
                 val total = subtotal
                 db.execSQL(
-                    "INSERT OR IGNORE INTO transactions (id, dateTime, itemsJson, subtotal, tax, total, paymentMethod, cashReceived, `change`, status, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO transactions (id, dateTime, itemsJson, subtotal, discount, tax, total, paymentMethod, cashReceived, `change`, status, note, tableNumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     arrayOf<Any?>(
-                        id, time, JSONArray(items).toString(), subtotal, 0, total, method,
-                        cash, if (cash != null) cash - total else null, status, ""
+                        id, time, JSONArray(items).toString(), subtotal, 0, 0, total, method,
+                        cash, if (cash != null) cash - total else null, status, "", table
                     )
                 )
             }
 
             tx(
-                "#INV-0183", now - 1000 * 60 * 18,
+                "#INV-0181",
+                now - dayMs,
                 listOf(
-                    item("P001", "Espresso", 18000, 1, "☕"),
+                    item("P001", "Es Kopi Daun", 22000, 2, "☕"),
+                    item("P010", "Butter Croissant", 22000, 1, "🥐")
+                ),
+                "CASH",
+                100000,
+                "SUKSES",
+                "Meja 02"
+            )
+            tx(
+                "#INV-0182",
+                now - (dayMs / 2),
+                listOf(
                     item("P003", "Cappuccino", 28000, 1, "🥛"),
-                    item("P009", "Croissant Butter", 22000, 1, "🥐"),
-                    item("P005", "Es Teh Manis", 12000, 1, "🧋")
+                    item("P005", "Matcha Latte", 28000, 1, "🍵"),
+                    item("P012", "Cheesecake Lemon", 32000, 1, "🍰")
                 ),
-                "CASH", 100000, "SUKSES"
+                "QRIS",
+                null,
+                "SUKSES",
+                "Meja 04"
             )
             tx(
-                "#INV-0182", now - 1000 * 60 * 60 * 2,
+                "#INV-0183",
+                now - (15 * 60 * 1000),
                 listOf(
-                    item("P007", "Nasi Goreng Spesial", 35000, 2, "🍛"),
-                    item("P006", "Lemon Tea", 18000, 2, "🍋")
+                    item("P001", "Es Kopi Daun", 22000, 1, "☕"),
+                    item("P003", "Cappuccino", 28000, 1, "🥛"),
+                    item("P010", "Butter Croissant", 22000, 1, "🥐"),
+                    item("P006", "Es Teh Manis", 12000, 1, "🧋")
                 ),
-                "QRIS", null, "SUKSES"
-            )
-            tx(
-                "#INV-0181", now - 1000 * 60 * 60 * 24,
-                listOf(
-                    item("P011", "Cheesecake Lemon", 32000, 1, "🍰"),
-                    item("P002", "Americano", 22000, 1, "🫘")
-                ),
-                "CASH", 60000, "SUKSES"
-            )
-            tx(
-                "#INV-0180", now - 1000 * 60 * 60 * 26,
-                listOf(
-                    item("P008", "Mie Goreng Jawa", 32000, 1, "🍜"),
-                    item("P005", "Es Teh Manis", 12000, 1, "🧋"),
-                    item("P012", "Brownies Cokelat", 25000, 1, "🍫")
-                ),
-                "TRANSFER", null, "SUKSES"
-            )
-            tx(
-                "#INV-0179", now - 1000 * 60 * 60 * 48,
-                listOf(
-                    item("P010", "Kentang Goreng", 25000, 1, "🍟"),
-                    item("P004", "Cafe Latte", 30000, 1, "☕")
-                ),
-                "QRIS", null, "SUKSES"
-            )
-            tx(
-                "#INV-0178", now - 1000 * 60 * 60 * 50,
-                listOf(
-                    item("P001", "Espresso", 18000, 3, "☕"),
-                    item("P009", "Croissant Butter", 22000, 2, "🥐")
-                ),
-                "CASH", 100000, "SUKSES"
+                "CASH",
+                100000,
+                "SUKSES",
+                "Meja 04"
             )
         }
     }

@@ -19,6 +19,12 @@ interface ProductDao {
 
     @Query("DELETE FROM products WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("UPDATE products SET stock = stock - :quantity WHERE id = :id AND stock >= :quantity")
+    suspend fun deductStock(id: String, quantity: Int): Int
+
+    @Query("UPDATE products SET available = :available WHERE id = :id")
+    suspend fun setAvailable(id: String, available: Boolean)
 }
 
 @Dao
@@ -49,4 +55,16 @@ interface UserDao {
 
     @Query("DELETE FROM users WHERE username = :username")
     suspend fun deleteByUsername(username: String)
+}
+
+@Dao
+interface ShiftDao {
+    @Query("SELECT * FROM shifts ORDER BY startTime DESC")
+    fun observeAll(): Flow<List<ShiftEntity>>
+
+    @Query("SELECT * FROM shifts WHERE status = 'OPEN' ORDER BY startTime DESC LIMIT 1")
+    suspend fun getActiveShift(): ShiftEntity?
+
+    @Upsert
+    suspend fun upsert(shift: ShiftEntity)
 }

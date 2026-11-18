@@ -1,5 +1,6 @@
 package com.daunpos.app.printer
 
+import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.ReceiptSettings
 import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.formatRupiah
@@ -24,6 +25,8 @@ object ThermalPrinter {
     fun doubleHeightWidth(on: Boolean) = byteArrayOf(0x1D, 0x21, (if (on) 0x11 else 0x00).toByte())
     fun feed(lines: Int) = ByteArray(lines) { 0x0A }
     fun cut() = byteArrayOf(0x1D, 0x56, 0x42, 0x00)
+    // Standar ESC/POS cash drawer kick pulse: ESC p m t1 t2 (pin 2 & pin 5)
+    fun openCashDrawer() = byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte())
 
     fun buildReceiptBytes(tx: Transaction, settings: ReceiptSettings): ByteArray {
         val chars = if (settings.paperWidth == 80) CHARS_80 else CHARS_58
@@ -37,6 +40,11 @@ object ThermalPrinter {
 
         val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID")).format(Date(tx.dateTime))
 
+        // Trigger laci kasir jika diaktifkan dan metode pembayaran Tunai
+        if (settings.cashDrawer && tx.paymentMethod == PaymentMethod.CASH) {
+            w(openCashDrawer())
+        }
+
         w(init())
         w(alignCenter())
         w(doubleHeightWidth(true))
@@ -47,8 +55,9 @@ object ThermalPrinter {
         settings.headerLines.forEach { center(it) }
         center("-".repeat(chars))
         w(alignLeft())
-        line("No  : ${tx.id}")
-        line("Waktu: $date")
+        line("No    : ${tx.id}")
+        line("Meja  : ${tx.tableNumber}")
+        line("Waktu : $date")
         center("-".repeat(chars))
         tx.items.forEach { item ->
             line(ascii(item.name).take(chars - 6) + " x" + item.quantity)
@@ -56,6 +65,9 @@ object ThermalPrinter {
         }
         center("-".repeat(chars))
         line("Subtotal".padEnd(chars - 14) + formatRupiah(tx.subtotal).padStart(14))
+        if (tx.discount > 0) {
+            line("Diskon".padEnd(chars - 14) + ("-" + formatRupiah(tx.discount)).padStart(14))
+        }
         if (tx.tax > 0) {
             line("Pajak".padEnd(chars - 14) + formatRupiah(tx.tax).padStart(14))
         }
@@ -91,14 +103,15 @@ object ThermalPrinter {
         w(alignLeft())
         line("Koneksi printer berhasil.")
         line("Ukuran kertas: ${settings.paperWidth}mm")
+        line("Laci kasir: ${if (settings.cashDrawer) "Aktif" else "Nonaktif"}")
         line("")
         line("Jika struk ini tercetak, berarti")
-        line("printer sudah siap digunakan.")
+        line("printer siap digunakan di POS.")
         w(feed(4))
         w(cut())
         return out.toByteArray()
     }
 
     private fun ascii(s: String): String =
-        s.map { if (it.code < 128) it else '?' }.joinToString("")
+        s.map { ch -> if (ch.code in 32..126) ch else '?' }.joinToString("")
 }

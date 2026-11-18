@@ -1,6 +1,7 @@
 package com.daunpos.app.data
 
 import com.daunpos.app.data.local.ProductEntity
+import com.daunpos.app.data.local.ShiftEntity
 import com.daunpos.app.data.local.TransactionEntity
 import org.json.JSONArray
 
@@ -10,8 +11,10 @@ fun ProductEntity.toDomain(): Product = Product(
     category = category,
     price = price,
     available = available,
+    stock = stock,
     emoji = emoji,
-    colorHex = colorHex
+    colorHex = colorHex,
+    imageUrl = imageUrl
 )
 
 fun Product.toEntity(): ProductEntity = ProductEntity(
@@ -20,8 +23,38 @@ fun Product.toEntity(): ProductEntity = ProductEntity(
     category = category,
     price = price,
     available = available,
+    stock = stock,
     emoji = emoji,
-    colorHex = colorHex
+    colorHex = colorHex,
+    imageUrl = imageUrl
+)
+
+fun ShiftEntity.toDomain(): ShiftRecord = ShiftRecord(
+    id = id,
+    cashierName = cashierName,
+    startTime = startTime,
+    endTime = endTime,
+    startCash = startCash,
+    endCash = endCash,
+    totalCashSales = totalCashSales,
+    totalQrisSales = totalQrisSales,
+    totalTransferSales = totalTransferSales,
+    totalTransactions = totalTransactions,
+    status = status
+)
+
+fun ShiftRecord.toEntity(): ShiftEntity = ShiftEntity(
+    id = id,
+    cashierName = cashierName,
+    startTime = startTime,
+    endTime = endTime,
+    startCash = startCash,
+    endCash = endCash,
+    totalCashSales = totalCashSales,
+    totalQrisSales = totalQrisSales,
+    totalTransferSales = totalTransferSales,
+    totalTransactions = totalTransactions,
+    status = status
 )
 
 fun TransactionEntity.toDomain(): Transaction {
@@ -44,13 +77,15 @@ fun TransactionEntity.toDomain(): Transaction {
         dateTime = dateTime,
         items = items,
         subtotal = subtotal,
+        discount = discount,
         tax = tax,
         total = total,
         paymentMethod = runCatching { PaymentMethod.valueOf(paymentMethod) }.getOrDefault(PaymentMethod.CASH),
         cashReceived = cashReceived,
         change = change,
         status = status,
-        note = note
+        note = note,
+        tableNumber = tableNumber
     )
 }
 
@@ -72,12 +107,14 @@ fun Transaction.toEntity(): TransactionEntity {
         dateTime = dateTime,
         itemsJson = arr.toString(),
         subtotal = subtotal,
+        discount = discount,
         tax = tax,
         total = total,
         paymentMethod = paymentMethod.name,
         cashReceived = cashReceived,
         change = change,
         status = status,
-        note = note
+        note = note,
+        tableNumber = tableNumber
     )
 }
