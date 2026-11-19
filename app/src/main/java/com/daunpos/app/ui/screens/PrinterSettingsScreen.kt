@@ -1048,6 +1048,18 @@ private fun BankNotificationListenerCard(
 
             Spacer(Modifier.height(14.dp))
 
+            var showNoticeDialog by remember { mutableStateOf(false) }
+
+            if (showNoticeDialog) {
+                NotificationNoticeDialog(
+                    onConfirm = {
+                        showNoticeDialog = false
+                        com.daunpos.app.notification.PaymentNotificationBridge.openNotificationSettings(context)
+                    },
+                    onDismiss = { showNoticeDialog = false }
+                )
+            }
+
             // Status chip & actions
             Row(
                 modifier = Modifier
@@ -1080,7 +1092,7 @@ private fun BankNotificationListenerCard(
 
                 if (!isGranted) {
                     Button(
-                        onClick = { com.daunpos.app.notification.PaymentNotificationBridge.openNotificationSettings(context) },
+                        onClick = { showNoticeDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Danger),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)

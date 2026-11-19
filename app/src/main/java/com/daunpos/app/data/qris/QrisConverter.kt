@@ -86,17 +86,42 @@ object QrisConverter {
     }
 
     /**
+     * Membersihkan dan memperbaiki malformasi umum pada string QRIS input,
+     * seperti kasus di mana Tag 59 (Nama Merchant) kelebihan 1 karakter panjang
+     * sehingga menelan digit '6' pertama dari Tag 60 (Kota Merchant e.g. "5909DNAPHOTO6010YOGYAKARTA").
+     */
+    fun sanitizeRawQris(raw: String): String {
+        var clean = raw.trim().replace("[\r\n\t]+".toRegex(), "")
+        // Deteksi Tag 59 menelan digit '6' dari Tag 60:
+        // Pola: 59(Length)(Nama)6(0)(LengthKota)(Kota)
+        val tag59CorruptedRegex = Regex("59(\\d{2})([A-Za-z0-9 ]+?)6(0\\d{2}[A-Za-z ]+)")
+        val match = tag59CorruptedRegex.find(clean)
+        if (match != null) {
+            val declaredLen = match.groupValues[1].toIntOrNull() ?: 0
+            val name = match.groupValues[2]
+            val rest = match.groupValues[3]
+            if (declaredLen == name.length + 1 && rest.startsWith("0")) {
+                val fixedTag59 = "59" + name.length.toString().padStart(2, '0') + name
+                val fixedTag60 = "6" + rest
+                clean = clean.substring(0, match.range.first) + fixedTag59 + fixedTag60 + clean.substring(match.range.last + 1)
+            }
+        }
+        return clean
+    }
+
+    /**
      * Mem-parsing string QRIS menjadi daftar komponen TLV (Tag-Length-Value).
      */
     fun parseTlvs(raw: String): List<QrisTlv> {
+        val sanitized = sanitizeRawQris(raw)
         val tlvs = mutableListOf<QrisTlv>()
         var index = 0
-        while (index + 4 <= raw.length) {
-            val tag = raw.substring(index, index + 2)
-            val lengthStr = raw.substring(index + 2, index + 4)
+        while (index + 4 <= sanitized.length) {
+            val tag = sanitized.substring(index, index + 2)
+            val lengthStr = sanitized.substring(index + 2, index + 4)
             val length = lengthStr.toIntOrNull() ?: break
-            if (index + 4 + length > raw.length) break
-            val value = raw.substring(index + 4, index + 4 + length)
+            if (index + 4 + length > sanitized.length) break
+            val value = sanitized.substring(index + 4, index + 4 + length)
             tlvs.add(QrisTlv(tag, length, value))
             index += 4 + length
         }

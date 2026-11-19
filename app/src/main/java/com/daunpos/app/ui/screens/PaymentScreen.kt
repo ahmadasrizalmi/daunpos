@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -534,6 +535,7 @@ private fun PaymentOptionsContent(
     val bluetooth by vm.bluetoothState.collectAsState()
     val staticQris by vm.staticQris.collectAsState()
     var showTutorialDialog by remember { mutableStateOf(false) }
+    var showNotificationNoticeDialog by remember { mutableStateOf(false) }
     var qrisScanFeedback by remember { mutableStateOf<String?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -554,6 +556,16 @@ private fun PaymentOptionsContent(
                 qrisScanFeedback = "⚠️ QR Code tidak terdeteksi pada gambar."
             }
         }
+    }
+
+    if (showNotificationNoticeDialog) {
+        NotificationNoticeDialog(
+            onConfirm = {
+                showNotificationNoticeDialog = false
+                onOpenNotificationSettings()
+            },
+            onDismiss = { showNotificationNoticeDialog = false }
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(if (isTablet) 10.dp else 16.dp)) {
@@ -791,252 +803,175 @@ private fun PaymentOptionsContent(
 
                     var qrisPrintedMessage by remember { mutableStateOf<String?>(null) }
 
-                    if (isTablet) {
-                        // Tablet Responsive QRIS Layout: QR Code on Left, Info on Right (Fits 100% without vertical scrolling!)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(Color(0xFFFBFDFB))
-                                .border(1.5.dp, GreenSoft, RoundedCornerShape(18.dp))
-                                .padding(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFFBFDFB))
+                            .border(1.5.dp, GreenSoft, RoundedCornerShape(20.dp))
+                            .padding(if (isTablet) 18.dp else 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Text(
+                                merchantInfo.merchantName,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Ink,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "${merchantInfo.city} · NMID: ${merchantInfo.nmid.ifBlank { "ID1020021950262" }}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = InkSoft
+                                )
+                            }
+
+                            // Real Scannable High-Res QR Code Image (Large & Prominent for Customers across the counter)
+                            Box(
+                                modifier = Modifier
+                                    .size(if (isTablet) 230.dp else 240.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(Color.White)
+                                    .border(1.dp, Line, RoundedCornerShape(18.dp))
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (qrBitmap != null) {
+                                    Image(
+                                        bitmap = qrBitmap.asImageBitmap(),
+                                        contentDescription = "QRIS Dinamis Asli",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    CircularProgressIndicator(color = Green, strokeWidth = 3.dp)
+                                }
+                            }
+
+                            // Locked Amount Banner
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(GreenSoft)
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Real Scannable High-Res QR Code Image (Standard BITS-QRIS Quiet Zone & Contrast)
-                                Box(
-                                    modifier = Modifier
-                                        .size(140.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(Color.White)
-                                        .border(1.dp, Line, RoundedCornerShape(14.dp))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (qrBitmap != null) {
-                                        Image(
-                                            bitmap = qrBitmap.asImageBitmap(),
-                                            contentDescription = "QRIS Dinamis Asli",
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        CircularProgressIndicator(color = Green, strokeWidth = 3.dp)
-                                    }
+                                Icon(Icons.Filled.Lock, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Nominal Terkunci: ${formatRupiah(total)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = GreenDeep,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Auto-Verifikasi Bank & E-Wallet Status Banner
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isNotificationAccessGranted) GreenSoft else Color(0xFFFFF4E5))
+                                    .border(1.dp, if (isNotificationAccessGranted) Green else Color(0xFFFFB74D), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isNotificationAccessGranted) Icons.Filled.NotificationsActive else Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        if (isNotificationAccessGranted) "Auto-Verifikasi Bank & QRIS Aktif" else "Izin Notifikasi Belum Aktif",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100)
+                                    )
+                                    Text(
+                                        if (isNotificationAccessGranted) "POS mendeteksi otomatis saat ada notifikasi masuk Rp ${formatRupiah(total)}"
+                                        else "Aktifkan akses notifikasi agar POS membaca mutasi masuk secara offline",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
+                                        color = InkSoft
+                                    )
                                 }
-
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(merchantInfo.merchantName, style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
-                                    Text("${merchantInfo.city} · NMID: ${merchantInfo.nmid.ifBlank { "ID1020021950262" }}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
-
-                                    // Locked Amount Banner
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(50))
-                                            .background(GreenSoft)
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Filled.Lock, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(5.dp))
-                                        Text(
-                                            "Nominal: ${formatRupiah(total)}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = GreenDeep,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-
-                                    // Auto-Verifikasi Bank Status
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isNotificationAccessGranted) GreenSoft else Color(0xFFFFF4E5))
-                                            .border(1.dp, if (isNotificationAccessGranted) Green else Color(0xFFFFB74D), RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isNotificationAccessGranted) Icons.Filled.NotificationsActive else Icons.Filled.Warning,
-                                            contentDescription = null,
-                                            tint = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100),
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                if (isNotificationAccessGranted) "Auto-Verifikasi Bank Aktif" else "Izin Notifikasi Belum Aktif",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100)
-                                            )
-                                        }
-                                        if (!isNotificationAccessGranted) {
-                                            Button(
-                                                onClick = onOpenNotificationSettings,
-                                                colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                                                shape = RoundedCornerShape(6.dp),
-                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                            ) {
-                                                Text("Aktifkan", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-
-                                    // Tombol Cetak Struk QRIS Meja (Compact)
-                                    OutlinedButton(
-                                        onClick = {
-                                            if (bluetooth.connected) {
-                                                vm.printQrisBill(total)
-                                                qrisPrintedMessage = "Struk QRIS sedang dicetak..."
-                                            } else {
-                                                qrisPrintedMessage = "Printer belum terhubung"
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
+                                if (!isNotificationAccessGranted) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Button(
+                                        onClick = { showNotificationNoticeDialog = true },
+                                        colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
                                         shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
-                                        Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(if (bluetooth.connected) "Cetak QR Tagihan ke Struk" else "Printer Belum Terhubung", fontSize = 11.sp)
+                                        Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
-                        }
-                    } else {
-                        // Phone Layout: Vertical Stack
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color(0xFFFBFDFB))
-                                .border(1.5.dp, GreenSoft, RoundedCornerShape(20.dp))
-                                .padding(18.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(merchantInfo.merchantName, style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${merchantInfo.city} · NMID: ${merchantInfo.nmid.ifBlank { "ID1020021950262" }}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
-                                }
 
-                                // Real Scannable High-Res QR Code Image (Standard BITS-QRIS Quiet Zone & Contrast)
-                                Box(
-                                    modifier = Modifier
-                                        .size(240.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color.White)
-                                        .border(1.dp, Line, RoundedCornerShape(16.dp))
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (qrBitmap != null) {
-                                        Image(
-                                            bitmap = qrBitmap.asImageBitmap(),
-                                            contentDescription = "QRIS Dinamis Asli",
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        CircularProgressIndicator(color = Green, strokeWidth = 3.dp)
-                                    }
-                                }
-
-                                // Locked Amount Banner
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .background(GreenSoft)
-                                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(14.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        "Nominal Terkunci: ${formatRupiah(total)}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = GreenDeep,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                // Auto-Verifikasi Bank & E-Wallet Status Banner
+                            // Feedback Banner / Konfirmasi Pembayaran Terdeteksi via Notifikasi
+                            if (pendingVerifiedEvent != null) {
+                                PendingNotificationConfirmationCard(
+                                    event = pendingVerifiedEvent,
+                                    onConfirm = onConfirmVerifiedPayment,
+                                    onDismiss = onDismissVerifiedPayment
+                                )
+                            } else if (autoVerifiedMessage != null) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isNotificationAccessGranted) GreenSoft else Color(0xFFFFF4E5))
-                                        .border(1.dp, if (isNotificationAccessGranted) Green else Color(0xFFFFB74D), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .background(GreenSoft)
+                                        .border(1.5.dp, Green, RoundedCornerShape(12.dp))
+                                        .padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (isNotificationAccessGranted) Icons.Filled.NotificationsActive else Icons.Filled.Warning,
-                                        contentDescription = null,
-                                        tint = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            if (isNotificationAccessGranted) "Auto-Verifikasi Bank & QRIS Aktif" else "Izin Notifikasi Belum Aktif",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isNotificationAccessGranted) GreenDeep else Color(0xFFE65100)
-                                        )
-                                        Text(
-                                            if (isNotificationAccessGranted) "POS mendeteksi otomatis saat ada notifikasi masuk Rp ${formatRupiah(total)}"
-                                            else "Aktifkan akses notifikasi agar POS membaca mutasi masuk secara offline",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontSize = 11.sp,
-                                            color = InkSoft
-                                        )
-                                    }
-                                    if (!isNotificationAccessGranted) {
-                                        Spacer(Modifier.width(6.dp))
-                                        Button(
-                                            onClick = onOpenNotificationSettings,
-                                            colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                        ) {
-                                            Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-
-                                // Tombol Cetak Struk QRIS Meja
-                                OutlinedButton(
-                                    onClick = {
-                                        if (bluetooth.connected) {
-                                            vm.printQrisBill(total)
-                                            qrisPrintedMessage = "Struk QRIS berhasil dikirim ke printer!"
-                                        } else {
-                                            qrisPrintedMessage = "Printer thermal belum terhubung! Silakan hubungkan di menu Printer."
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (bluetooth.connected) Green else Line)
-                                ) {
-                                    Icon(Icons.Filled.Print, contentDescription = null, tint = if (bluetooth.connected) GreenDeep else InkSoft, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        if (bluetooth.connected) "Cetak QR Tagihan ke Struk" else "Printer Belum Terhubung",
-                                        color = if (bluetooth.connected) GreenDeep else InkSoft,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp
+                                        autoVerifiedMessage,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GreenDeep
                                     )
                                 }
+                            }
+
+                            Text(
+                                "Mendukung notifikasi: BCA, Mandiri, BRI, BNI, GoBiz, OVO, Dana, ShopeePay",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = InkSoft,
+                                textAlign = TextAlign.Center
+                            )
+
+                            // Tombol Cetak Struk QRIS Meja
+                            OutlinedButton(
+                                onClick = {
+                                    if (bluetooth.connected) {
+                                        vm.printQrisBill(total)
+                                        qrisPrintedMessage = "Struk QRIS berhasil dikirim ke printer!"
+                                    } else {
+                                        qrisPrintedMessage = "Printer thermal belum terhubung! Silakan hubungkan di menu Printer."
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (bluetooth.connected) Green else Line)
+                            ) {
+                                Icon(Icons.Filled.Print, contentDescription = null, tint = if (bluetooth.connected) GreenDeep else InkSoft, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    if (bluetooth.connected) "Cetak QR Tagihan ke Struk" else "Printer Belum Terhubung",
+                                    color = if (bluetooth.connected) GreenDeep else InkSoft,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
                             }
                         }
                     }
@@ -1048,22 +983,6 @@ private fun PaymentOptionsContent(
                             color = if (bluetooth.connected) GreenDeep else Danger,
                             textAlign = TextAlign.Center
                         )
-                    }
-
-                    // Tombol Simulasi Pembayaran / Notifikasi Masuk
-                    Button(
-                        onClick = onSimulateBankNotification,
-                        colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (qrisChecking) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Simulasikan Notifikasi Bank Masuk (${formatRupiah(total)})", fontSize = 13.sp)
                     }
                 }
             }
@@ -1115,6 +1034,17 @@ private fun PaymentOptionsContent(
                                     color = InkSoft
                                 )
                             }
+                            if (!isNotificationAccessGranted) {
+                                Spacer(Modifier.width(6.dp))
+                                Button(
+                                    onClick = { showNotificationNoticeDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
 
                         // Feedback Banner / Konfirmasi Pembayaran Terdeteksi via Notifikasi
@@ -1143,17 +1073,6 @@ private fun PaymentOptionsContent(
                                     color = GreenDeep
                                 )
                             }
-                        }
-
-                        Button(
-                            onClick = onSimulateBankNotification,
-                            colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Simulasikan Notifikasi Transfer Masuk", fontSize = 13.sp)
                         }
                     }
                 }
@@ -1289,4 +1208,87 @@ private fun PendingNotificationConfirmationCard(
             }
         }
     }
+}
+
+@Composable
+fun NotificationNoticeDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE8F5E9)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.NotificationsActive,
+                    contentDescription = null,
+                    tint = GreenDeep,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Auto-Verifikasi Notifikasi\n(Bukan Payment Gateway)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = Ink
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Fitur ini membaca notifikasi transaksi masuk yang muncul di HP/Tablet kasir dari aplikasi bank/e-wallet Anda secara 100% offline & tanpa potongan biaya admin.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Ink
+                )
+                Text(
+                    text = "Karena mengandalkan sistem notifikasi Android lokal, notifikasi sewaktu-waktu dapat mengalami keterlambatan atau tidak terdeteksi akibat sistem hemat daya perangkat atau kendala jaringan bank.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSoft
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(GreenSoft)
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = "💡 Apabila notifikasi belum terbaca otomatis, kasir dapat langsung menyelesaikan transaksi secara manual dengan menekan tombol 'Konfirmasi Transaksi QRIS' setelah melihat bukti transfer di layar pelanggan.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GreenDeep,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Saya Mengerti & Buka Pengaturan", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+            ) {
+                Text("Nanti Saja", color = InkSoft)
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = Color.White
+    )
 }

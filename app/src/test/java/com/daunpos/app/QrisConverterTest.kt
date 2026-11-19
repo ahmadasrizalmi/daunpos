@@ -92,6 +92,27 @@ class QrisConverterTest {
     }
 
     @Test
+    fun testTag59TypoAutoRepairedAndTag60Restored() {
+        // String di mana Tag 59 panjangnya tertulis 09 sehingga menelan digit '6' pertama dari Tag 60 ("6010YOGYAKARTA")
+        val corrupted = "00020101021126610014COM.GO-JEK.WWW01189360091438110491800210G8110491800303UMI51440014ID.CO.QRIS.WWW0215ID10254436457060303UMI5204733353033605802ID5909DNAPHOTO6010YOGYAKARTA61055525162070703A016304749C"
+        
+        val sanitized = QrisConverter.sanitizeRawQris(corrupted)
+        assertTrue(sanitized.contains("5908DNAPHOTO6010YOGYAKARTA"))
+
+        val info = QrisConverter.parseMerchantInfo(corrupted)
+        assertEquals("Nama merchant harus dibersihkan dari angka 6 menjadi DNAPHOTO", "DNAPHOTO", info.merchantName)
+        assertEquals("Kota merchant harus berhasil dipulihkan menjadi YOGYAKARTA", "YOGYAKARTA", info.city)
+
+        // Konversi ke dinamis
+        val dynamic = QrisConverter.convertStaticToDynamic(corrupted, 22000)
+        val dynamicInfo = QrisConverter.parseMerchantInfo(dynamic)
+        assertEquals("DNAPHOTO", dynamicInfo.merchantName)
+        assertEquals("YOGYAKARTA", dynamicInfo.city)
+        assertEquals(22000, dynamicInfo.amount)
+        assertTrue(dynamicInfo.isValidCrc)
+    }
+
+    @Test
     fun testCrcCalculationConsistency() {
         val prefix = "00020101021153033605802ID5908TESTKAFE6007BANDUNG6304"
         val crc = QrisConverter.calculateCrc16(prefix)
