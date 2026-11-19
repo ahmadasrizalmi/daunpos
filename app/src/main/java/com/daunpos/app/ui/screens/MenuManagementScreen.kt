@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +47,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,14 +62,16 @@ import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.CATEGORIES
 import com.daunpos.app.data.Product
 import com.daunpos.app.data.formatRupiah
-import com.daunpos.app.ui.components.ProductEmoji
+import com.daunpos.app.ui.components.ProductThumbnail
 import com.daunpos.app.ui.theme.Bg
+import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.Green
 import com.daunpos.app.ui.theme.GreenDeep
 import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import kotlinx.coroutines.launch
 
 @Composable
 fun MenuManagementScreen(vm: DaunPOSViewModel) {
@@ -75,6 +81,12 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
     var editing by remember { mutableStateOf<Product?>(null) }
     var showDialog by remember { mutableStateOf(false) }
 
+    // Owner protection for delete
+    var deleteCandidate by remember { mutableStateOf<String?>(null) }
+    var ownerPin by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
     val filtered = products.filter {
         (category == "Semua" || it.category == category) &&
             it.name.contains(query, ignoreCase = true)
@@ -82,12 +94,18 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
-            Text(
-                "Manajemen Menu",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Ink,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, top = 20.dp, end = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Manajemen Menu", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("${products.size} menu · ${products.count { it.available && it.stock > 0 }} tersedia", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                }
+            }
 
             // Search
             OutlinedTextField(
@@ -95,12 +113,14 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
                 onValueChange = { query = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                placeholder = { Text("Cari menu...") },
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                placeholder = { Text("Cari nama menu...") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = InkSoft) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
                     focusedBorderColor = Green,
                     unfocusedBorderColor = Line,
                     cursorColor = GreenDeep
@@ -112,7 +132,7 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 CATEGORIES.forEach { cat ->
@@ -123,17 +143,17 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
                             .background(if (active) GreenDeep else Color.White)
                             .border(1.dp, if (active) GreenDeep else Line, RoundedCornerShape(50))
                             .clickable { category = cat }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(cat, color = if (active) Color.White else Ink, style = MaterialTheme.typography.labelMedium, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium)
                     }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 90.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -145,7 +165,9 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
                             editing = product
                             showDialog = true
                         },
-                        onDelete = { vm.deleteProduct(product.id) }
+                        onDelete = {
+                            deleteCandidate = product.id
+                        }
                     )
                 }
             }
@@ -160,20 +182,71 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
             contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp)
+                .padding(24.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Tambah menu")
+            Icon(Icons.Filled.Add, contentDescription = "Tambah Menu", modifier = Modifier.size(28.dp))
         }
     }
 
     if (showDialog) {
         ProductDialog(
-            product = editing,
-            nextId = { vm.nextProductId() },
+            initial = editing,
+            nextId = vm.nextProductId(),
             onDismiss = { showDialog = false },
             onSave = { product ->
                 vm.upsertProduct(product)
                 showDialog = false
+            }
+        )
+    }
+
+    // Owner PIN confirmation for delete
+    deleteCandidate?.let { id ->
+        AlertDialog(
+            onDismissRequest = { deleteCandidate = null; ownerPin = ""; pinError = null },
+            title = { Text("Hapus Menu (Otorisasi Pemilik)") },
+            text = {
+                Column {
+                    Text("Menghapus menu memerlukan konfirmasi PIN pemilik kafe (default: 0000).", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = ownerPin,
+                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) ownerPin = it },
+                        label = { Text("PIN Pemilik 4-Digit") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                        isError = pinError != null
+                    )
+                    if (pinError != null) {
+                        Text(pinError ?: "", color = Danger, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val valid = vm.verifyOwnerPin(ownerPin)
+                            if (valid) {
+                                vm.deleteProduct(id)
+                                deleteCandidate = null
+                                ownerPin = ""
+                                pinError = null
+                            } else {
+                                pinError = "PIN pemilik salah."
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger)
+                ) {
+                    Text("Hapus")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteCandidate = null; ownerPin = ""; pinError = null }) {
+                    Text("Batal")
+                }
             }
         )
     }
@@ -189,32 +262,29 @@ private fun ProductRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
-            .border(1.dp, Line, RoundedCornerShape(18.dp))
-            .padding(12.dp),
+            .border(1.dp, Line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ProductEmoji(product.emoji, product.colorHex, 52)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(product.name, style = MaterialTheme.typography.titleSmall, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(2.dp))
-            Text(product.category, style = MaterialTheme.typography.labelSmall, color = InkSoft)
-            Spacer(Modifier.height(2.dp))
-            Text(formatRupiah(product.price), style = MaterialTheme.typography.bodyMedium, color = GreenDeep, fontWeight = FontWeight.Bold)
+        Box(modifier = Modifier.size(52.dp)) {
+            ProductThumbnail(product = product, height = 52)
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Row {
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = InkSoft, modifier = Modifier.size(18.dp))
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Hapus", tint = InkSoft, modifier = Modifier.size(18.dp))
-                }
-            }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(product.name, style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "${product.category} · Stok: ${product.stock} porsi",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (product.stock <= 5) Danger else InkSoft
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(formatRupiah(product.price), style = MaterialTheme.typography.bodyMedium, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(
-                checked = product.available,
+                checked = product.available && product.stock > 0,
                 onCheckedChange = { onToggle() },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
@@ -223,98 +293,128 @@ private fun ProductRow(
                     uncheckedTrackColor = Line
                 )
             )
-            Text(
-                if (product.available) "Tersedia" else "Habis",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (product.available) GreenDeep else InkSoft
-            )
+            IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = InkSoft, modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Delete, contentDescription = "Hapus", tint = Danger, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
 
 @Composable
 private fun ProductDialog(
-    product: Product?,
-    nextId: () -> String,
+    initial: Product?,
+    nextId: String,
     onDismiss: () -> Unit,
     onSave: (Product) -> Unit
 ) {
-    var name by remember { mutableStateOf(product?.name ?: "") }
-    var category by remember { mutableStateOf(product?.category ?: "Kopi") }
-    var price by remember { mutableStateOf(product?.price?.toString() ?: "") }
-    var emoji by remember { mutableStateOf(product?.emoji ?: "🍽️") }
+    val isEdit = initial != null
+    var name by remember { mutableStateOf(initial?.name ?: "") }
+    var priceText by remember { mutableStateOf(initial?.price?.toString() ?: "") }
+    var stockText by remember { mutableStateOf(initial?.stock?.toString() ?: "50") }
+    var category by remember { mutableStateOf(initial?.category ?: "Kopi") }
+    var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
+    var catExpanded by remember { mutableStateOf(false) }
+
+    val categories = CATEGORIES.filter { it != "Semua" }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(22.dp),
-        title = {
-            Text(if (product == null) "Tambah Menu" else "Edit Menu", color = Ink, fontWeight = FontWeight.Bold)
-        },
+        title = { Text(if (isEdit) "Ubah Menu" else "Tambah Menu Baru", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama produk") },
+                    label = { Text("Nama Menu") },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Green, unfocusedBorderColor = Line)
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CATEGORIES.filter { it != "Semua" }.forEach { cat ->
-                        val active = cat == category
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (active) GreenDeep else GreenSoft)
-                                .clickable { category = cat }
-                                .padding(horizontal = 12.dp, vertical = 7.dp)
-                        ) {
-                            Text(cat, color = if (active) Color.White else GreenDeep, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+
+                // Category dropdown
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Kategori") },
+                        modifier = Modifier.fillMaxWidth().clickable { catExpanded = true }
+                    )
+                    DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
+                        categories.forEach { c ->
+                            DropdownMenuItem(
+                                text = { Text(c) },
+                                onClick = {
+                                    category = c
+                                    catExpanded = false
+                                }
+                            )
                         }
                     }
                 }
+
                 OutlinedTextField(
-                    value = price,
-                    onValueChange = { v -> price = v.filter { it.isDigit() }.take(8) },
-                    label = { Text("Harga (Rp)") },
+                    value = priceText,
+                    onValueChange = { v -> priceText = v.filter { it.isDigit() } },
+                    label = { Text("Harga Jual (Rp)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Green, unfocusedBorderColor = Line)
+                    modifier = Modifier.fillMaxWidth()
                 )
+
                 OutlinedTextField(
-                    value = emoji,
-                    onValueChange = { emoji = it.take(4) },
-                    label = { Text("Emoji") },
+                    value = stockText,
+                    onValueChange = { v -> stockText = v.filter { it.isDigit() } },
+                    label = { Text("Kuantitas Stok (Porsi)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Green, unfocusedBorderColor = Line)
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    label = { Text("URL Foto Produk (Opsional)") },
+                    placeholder = { Text("https://...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val p = product ?: Product(
-                        id = nextId(),
-                        name = name,
-                        category = category,
-                        price = price.toIntOrNull() ?: 0
-                    )
-                    onSave(p.copy(name = name, category = category, price = price.toIntOrNull() ?: 0, emoji = emoji.ifBlank { "🍽️" }))
+                    val price = priceText.toIntOrNull() ?: 0
+                    val stock = stockText.toIntOrNull() ?: 50
+                    if (name.isNotBlank() && price > 0) {
+                        onSave(
+                            Product(
+                                id = initial?.id ?: nextId,
+                                name = name.trim(),
+                                category = category,
+                                price = price,
+                                stock = stock,
+                                available = stock > 0,
+                                emoji = initial?.emoji ?: "🍽️",
+                                colorHex = initial?.colorHex ?: 0xFFE7F4EA,
+                                imageUrl = imageUrl.ifBlank { null }
+                            )
+                        )
+                    }
                 },
-                enabled = name.isNotBlank() && (price.toIntOrNull() ?: 0) > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Green)
             ) {
-                Text("Simpan", fontWeight = FontWeight.Bold)
+                Text("Simpan")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal", color = InkSoft)
+                Text("Batal")
             }
         }
     )

@@ -2,6 +2,7 @@ package com.daunpos.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,12 +28,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.daunpos.app.data.Product
+import com.daunpos.app.data.formatRupiah
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.DangerSoft
 import com.daunpos.app.ui.theme.Green
@@ -60,6 +69,36 @@ fun StatusBadge(
 }
 
 @Composable
+fun ProductThumbnail(
+    product: Product,
+    height: Int = 104,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(product.colorHex)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!product.imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(product.imageUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = product.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(height.dp)
+            )
+        } else {
+            Text(text = product.emoji, fontSize = (height * 0.42).sp)
+        }
+    }
+}
+
+@Composable
 fun ProductEmoji(
     emoji: String,
     colorHex: Long,
@@ -78,30 +117,103 @@ fun ProductEmoji(
 }
 
 @Composable
-fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        color = Ink,
-        modifier = modifier
-    )
-}
-
-@Composable
-fun MoneyText(
-    amount: Int,
-    modifier: Modifier = Modifier,
-    color: Color = Ink,
-    fontWeight: FontWeight = FontWeight.Bold,
-    fontSize: Int? = null
+fun ProductMenuCard(
+    product: Product,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Text(
-        text = com.daunpos.app.data.formatRupiah(amount),
-        modifier = modifier,
-        color = color,
-        fontWeight = fontWeight,
-        fontSize = if (fontSize != null) fontSize.sp else MaterialTheme.typography.bodyLarge.fontSize
-    )
+    val outOfStock = !product.available || product.stock <= 0
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .clickable(enabled = !outOfStock, onClick = onClick)
+            .padding(12.dp)
+    ) {
+        Column {
+            Box {
+                ProductThumbnail(product = product, height = 104)
+                if (outOfStock) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(104.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xB3FFFFFF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DangerSoft)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "Stok Habis",
+                                color = Danger,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else if (product.stock <= 10) {
+                    Box(
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xCC000000))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text("Sisa ${product.stock}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                product.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = Ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                minLines = 2
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    formatRupiah(product.price),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = GreenDeep,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Plus button matching DaunPOS.pen (26x26 with green-soft background and green-deep plus)
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (outOfStock) Line else GreenSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Tambah",
+                        tint = if (outOfStock) InkSoft else GreenDeep,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -126,30 +238,5 @@ fun EmptyState(
             color = InkSoft,
             textAlign = TextAlign.Center
         )
-    }
-}
-
-@Composable
-fun Divider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(Line)
-    )
-}
-
-@Composable
-fun CardShell(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Box(Modifier.padding(0.dp)) { content() }
     }
 }

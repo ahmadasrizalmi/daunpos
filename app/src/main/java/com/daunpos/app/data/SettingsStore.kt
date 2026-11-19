@@ -1,6 +1,7 @@
 package com.daunpos.app.data
 
 import android.content.Context
+import com.daunpos.app.data.qris.QrisConverter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,97 @@ class SettingsStore(context: Context) {
 
     private val _printer = MutableStateFlow(loadPrinter())
     val printer: StateFlow<PrinterSettings> = _printer.asStateFlow()
+
+    private val _staticQris = MutableStateFlow(
+        prefs.getString("static_qris", "") ?: ""
+    )
+    val staticQris: StateFlow<String> = _staticQris.asStateFlow()
+
+    private val _isOnboardingCompleted = MutableStateFlow(
+        prefs.getBoolean("onboarding_completed", false)
+    )
+    val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    private val _storeProfile = MutableStateFlow(loadStoreProfile())
+    val storeProfile: StateFlow<StoreProfile> = _storeProfile.asStateFlow()
+
+    fun completeOnboarding(
+        name: String,
+        category: BusinessCategory,
+        address: String,
+        phone: String,
+        qris: String,
+        isMultiUser: Boolean
+    ) {
+        val cleanQris = qris.trim().replace("\\s+".toRegex(), "").ifBlank { _staticQris.value }
+        val tax = category.defaultTax
+
+        val newProfile = StoreProfile(
+            storeName = name,
+            businessCategory = category,
+            address = address,
+            phoneNumber = phone,
+            taxPercentage = tax,
+            staticQris = cleanQris,
+            isMultiUserEnabled = isMultiUser,
+            isOnboardingCompleted = true
+        )
+
+        _storeProfile.value = newProfile
+        _isOnboardingCompleted.value = true
+        _staticQris.value = cleanQris
+
+        prefs.edit()
+            .putBoolean("onboarding_completed", true)
+            .putString("store_name", name)
+            .putString("business_category", category.id)
+            .putString("store_address", address)
+            .putString("store_phone", phone)
+            .putString("static_qris", cleanQris)
+            .putBoolean("is_multi_user", isMultiUser)
+            .apply()
+
+        // Sync store name and address to receipt headers
+        updateReceipt(
+            _receipt.value.copy(
+                headerLines = listOf(name, address, phone),
+                taxPercentage = tax
+            )
+        )
+    }
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+        prefs.edit().putBoolean("onboarding_completed", completed).apply()
+    }
+
+    private fun loadStoreProfile(): StoreProfile {
+        val name = prefs.getString("store_name", "DaunPOS") ?: "DaunPOS"
+        val categoryStr = prefs.getString("business_category", "FNB") ?: "FNB"
+        val category = BusinessCategory.fromId(categoryStr)
+        val address = prefs.getString("store_address", "Jl. Daun Hijau No. 8, Bandung") ?: "Jl. Daun Hijau No. 8, Bandung"
+        val phone = prefs.getString("store_phone", "0812-3456-7890") ?: "0812-3456-7890"
+        val qris = prefs.getString("static_qris", "") ?: ""
+        val isMulti = prefs.getBoolean("is_multi_user", false)
+        val completed = prefs.getBoolean("onboarding_completed", false)
+
+        return StoreProfile(
+            storeName = name,
+            businessCategory = category,
+            address = address,
+            phoneNumber = phone,
+            taxPercentage = category.defaultTax,
+            staticQris = qris,
+            isMultiUserEnabled = isMulti,
+            isOnboardingCompleted = completed
+        )
+    }
+
+    fun updateStaticQris(raw: String) {
+        val clean = raw.trim().replace("\\s+".toRegex(), "")
+        _staticQris.value = clean
+        prefs.edit().putString("static_qris", clean).apply()
+    }
 
     fun updateReceipt(settings: ReceiptSettings) {
         _receipt.value = settings
@@ -42,7 +134,7 @@ class SettingsStore(context: Context) {
     }
 
     fun nextInvoiceNumber(): String {
-        val next = prefs.getInt("next_invoice", 200)
+        val next = prefs.getInt("next_invoice", 184)
         prefs.edit().putInt("next_invoice", next + 1).apply()
         return "#INV-" + next.toString().padStart(4, '0')
     }
@@ -60,7 +152,7 @@ class SettingsStore(context: Context) {
             showLogo = prefs.getBoolean("show_logo", true),
             showQR = prefs.getBoolean("show_qr", true),
             headerLines = headers,
-            footerText = prefs.getString("footer_text", "Terima kasih sudah berkunjung!\nPassword Wi-Fi: kopi123")
+            footerText = prefs.getString("footer_text", "Terima kasih sudah berkunjung!\nSilakan datang kembali.")
                 ?: "Terima kasih sudah berkunjung!"
         )
     }

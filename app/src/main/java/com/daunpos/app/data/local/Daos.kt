@@ -19,6 +19,12 @@ interface ProductDao {
 
     @Query("DELETE FROM products WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("UPDATE products SET stock = stock - :quantity WHERE id = :id AND stock >= :quantity")
+    suspend fun deductStock(id: String, quantity: Int): Int
+
+    @Query("UPDATE products SET available = :available WHERE id = :id")
+    suspend fun setAvailable(id: String, available: Boolean)
 }
 
 @Dao
@@ -49,4 +55,43 @@ interface UserDao {
 
     @Query("DELETE FROM users WHERE username = :username")
     suspend fun deleteByUsername(username: String)
+}
+
+@Dao
+interface ShiftDao {
+    @Query("SELECT * FROM shifts ORDER BY startTime DESC")
+    fun observeAll(): Flow<List<ShiftEntity>>
+
+    @Query("SELECT * FROM shifts WHERE status = 'OPEN' ORDER BY startTime DESC LIMIT 1")
+    suspend fun getActiveShift(): ShiftEntity?
+
+    @Upsert
+    suspend fun upsert(shift: ShiftEntity)
+}
+
+@Dao
+interface StoreProfileDao {
+    @Query("SELECT * FROM store_profile WHERE id = 1 LIMIT 1")
+    fun observeProfile(): Flow<StoreProfileEntity?>
+
+    @Query("SELECT * FROM store_profile WHERE id = 1 LIMIT 1")
+    suspend fun getProfile(): StoreProfileEntity?
+
+    @Upsert
+    suspend fun upsert(profile: StoreProfileEntity)
+}
+
+@Dao
+interface StoreStaffDao {
+    @Query("SELECT * FROM store_staff WHERE isActive = 1 ORDER BY name")
+    fun observeAll(): Flow<List<StoreStaffEntity>>
+
+    @Query("SELECT * FROM store_staff WHERE isActive = 1 ORDER BY name")
+    suspend fun getAll(): List<StoreStaffEntity>
+
+    @Upsert
+    suspend fun upsert(staff: StoreStaffEntity)
+
+    @Query("DELETE FROM store_staff WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

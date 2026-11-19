@@ -13,14 +13,14 @@ android {
         applicationId = "com.daunpos.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.3.0"
     }
 
     signingConfigs {
         // Keystore tidak di-commit ke repo (lihat .gitignore).
         // Untuk rilis, sediakan keystore/daunpos-release.jks secara lokal atau via CI secret.
-        val keystoreFile = file("../keystore/daunpos-release.jks")
+        val keystoreFile = rootProject.file("keystore/daunpos-release.jks")
         if (keystoreFile.exists()) {
             create("release") {
                 storeFile = keystoreFile
@@ -73,6 +73,10 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.compose.ui:ui-text-google-fonts")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

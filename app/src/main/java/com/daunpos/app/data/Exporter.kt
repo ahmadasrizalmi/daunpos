@@ -17,13 +17,13 @@ object Exporter {
 
     fun exportCsv(context: Context, transactions: List<Transaction>): File {
         val sb = StringBuilder()
-        sb.append("ID,Waktu,Metode,Subtotal,Total,Status\n")
+        sb.append("ID,Waktu,Meja,Metode,Subtotal,Diskon,Pajak,Total,Status,Item\n")
         val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale("id", "ID"))
         transactions.forEach { tx ->
             val itemDesc = tx.items.joinToString(" | ") { "${it.quantity}x ${it.name}" }
                 .replace(",", ";")
                 .replace("\"", "'")
-            sb.append("${tx.id},${df.format(Date(tx.dateTime))},${tx.paymentMethod.label},${tx.subtotal},${tx.total},${tx.status},\"$itemDesc\"\n")
+            sb.append("${tx.id},${df.format(Date(tx.dateTime))},${tx.tableNumber},${tx.paymentMethod.label},${tx.subtotal},${tx.discount},${tx.tax},${tx.total},${tx.status},\"$itemDesc\"\n")
         }
         val file = File(context.cacheDir, "DaunPOS-${System.currentTimeMillis()}.csv")
         file.writeText(sb.toString(), Charsets.UTF_8)
@@ -90,7 +90,7 @@ object Exporter {
             canvas.drawText(tx.id, margin.toFloat(), y + 4f, headerPaint)
             canvas.drawText(tx.status, (pageWidth - margin - 60).toFloat(), y + 4f, headerPaint)
             y += 18
-            canvas.drawText("${df.format(Date(tx.dateTime))}  •  ${tx.paymentMethod.label}", margin.toFloat(), y + 4f, softPaint)
+            canvas.drawText("${df.format(Date(tx.dateTime))}  •  ${tx.paymentMethod.label}  •  ${tx.tableNumber}", margin.toFloat(), y + 4f, softPaint)
             y += 16
             tx.items.forEach { item ->
                 canvas.drawText("  ${item.quantity}x ${item.name}", margin.toFloat(), y + 4f, bodyPaint)

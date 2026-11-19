@@ -13,28 +13,30 @@
   body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
   header{padding:40px 32px 24px;background:linear-gradient(160deg,#184936,#2C7457);color:#fff}
   header h1{margin:0 0 6px;font-size:30px;letter-spacing:-.6px}
-  header p{margin:0;color:#A9D9BE;font-size:14px;max-width:60ch;line-height:1.6}
+  header p{margin:0;color:#A9D9BE;font-size:14px;max-width:65ch;line-height:1.6}
   .tokens{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
   .tok{display:flex;align-items:center;gap:7px;background:#ffffff1a;border-radius:999px;padding:5px 12px;font-size:11px;color:#EAF6EE}
   .tok i{width:11px;height:11px;border-radius:50%;display:block}
   main{padding:32px;max-width:1400px;margin:0 auto}
-  h2{font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);margin:8px 0 18px;font-weight:600}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);margin:8px 0 18px;font-weight:700}
   section{margin-bottom:44px}
   .grid{display:grid;gap:26px}
   .phone{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
   .tablet{grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
-  figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 6px 20px #14251e0d}
+  figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 6px 20px #14251e0d;transition:transform .2s, box-shadow .2s}
+  figure:hover{transform:translateY(-3px);box-shadow:0 12px 30px #14251e15}
   figure img{width:100%;display:block;border-radius:12px;background:var(--bg)}
   figcaption{margin-top:10px;font-size:12.5px;font-weight:600;color:var(--ink)}
   figcaption span{display:block;font-weight:400;font-size:11px;color:var(--ink-soft);margin-top:2px}
+  .badge-new{display:inline-block;background:#E7F4EA;color:#1F5C43;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
   a{color:var(--green-deep)}
-  footer{padding:0 32px 48px;max-width:1400px;margin:0 auto;font-size:12px;color:var(--ink-soft);line-height:1.7}
+  footer{padding:0 32px 48px;max-width:1400px;margin:0 auto;font-size:12px;color:var(--ink-soft);line-height:1.7;border-top:1px solid var(--line);padding-top:24px}
 </style>
 </head>
 <body>
 <header>
-  <h1>DaunPOS</h1>
-  <p>Design kit aplikasi kasir kafe untuk Android — smartphone &amp; tablet. Desain mengikuti PRD DaunPOS: POS cepat, laporan penjualan, manajemen menu, pembayaran multi-metode, dan pengaturan printer thermal.</p>
+  <h1>DaunPOS Next-Gen</h1>
+  <p>Design kit &amp; sistem antarmuka aplikasi kasir modern multi-industri untuk Android — smartphone &amp; tablet. Desain asli dikembangkan di OpenPen / Pencil Studio (<code>DaunPOS.pen</code>) dengan ikon vektor SVG Lucide standar perbankan/retail dan token visual 1:1.</p>
   <div class="tokens">
     <span class="tok"><i style="background:#1F5C43"></i>#1F5C43 deep</span>
     <span class="tok"><i style="background:#6FC08D"></i>#6FC08D green</span>
@@ -45,39 +47,71 @@
   </div>
 </header>
 <main>
+
+  <!-- BAGIAN BARU: MULTI-INDUSTRI & ONBOARDING -->
   <section>
-    <h2>Phone — 390 px</h2>
+    <h2>Multi-Industri, Onboarding &amp; QRIS Dinamis <span class="badge-new">OPENPEN BARU</span></h2>
     <div class="grid phone">
-      <figure><img src="phone/01-login.png" alt="Login"><figcaption>Login &amp; Koneksi<span>PIN kasir + brand</span></figcaption></figure>
-      <figure><img src="phone/02-pos-kasir.png" alt="POS"><figcaption>POS / Kasir<span>Kategori, grid menu, keranjang</span></figcaption></figure>
-      <figure><img src="phone/03-pembayaran.png" alt="Pembayaran"><figcaption>Pembayaran<span>Tunai, QRIS, Transfer + kembalian</span></figcaption></figure>
-      <figure><img src="phone/04-transaksi-berhasil.png" alt="Berhasil"><figcaption>Transaksi Berhasil<span>Cetak struk / kirim WhatsApp</span></figcaption></figure>
-      <figure><img src="phone/05-laporan-penjualan.png" alt="Laporan"><figcaption>Laporan Penjualan<span>KPI, grafik, riwayat</span></figcaption></figure>
-      <figure><img src="phone/06-detail-transaksi.png" alt="Detail"><figcaption>Detail Transaksi<span>Reprint struk</span></figcaption></figure>
-      <figure><img src="phone/07-manajemen-menu.png" alt="Menu"><figcaption>Manajemen Menu<span>Search, toggle stok, FAB</span></figcaption></figure>
-      <figure><img src="phone/08-pengaturan-printer.png" alt="Printer"><figcaption>Pengaturan Printer<span>Bluetooth/USB/LAN, 58/80mm</span></figcaption></figure>
-      <figure><img src="phone/09-kustomisasi-struk.png" alt="Struk"><figcaption>Kustomisasi Struk<span>Live preview thermal</span></figcaption></figure>
+      <figure>
+        <img src="phone/10-splash-onboarding.png" alt="Splash &amp; Onboarding">
+        <figcaption>10. Splash &amp; Onboarding<span>Branding daun, 3 pilar kategori &amp; keunggulan utama</span></figcaption>
+      </figure>
+      <figure>
+        <img src="phone/11-pilih-kategori-bisnis.png" alt="Pilih Kategori Bisnis">
+        <figcaption>11. Pilih Kategori Bisnis<span>3 Card besar ber-shadow (F&amp;B, Retail, Jasa) &amp; tag ikon</span></figcaption>
+      </figure>
+      <figure>
+        <img src="phone/12-setup-toko-dan-tim.png" alt="Setup Toko &amp; Tim">
+        <figcaption>12. Setup Toko &amp; Tim<span>Profil toko, QRIS statis-ke-dinamis &amp; akun kasir</span></figcaption>
+      </figure>
+      <figure>
+        <img src="phone/13-pos-retail-adaptive.png" alt="POS Mode Retail">
+        <figcaption>13. POS Mode Retail<span>Scan barcode SKU, stok fisik, keranjang &amp; tab bar</span></figcaption>
+      </figure>
+      <figure>
+        <img src="phone/14-pos-jasa-adaptive.png" alt="POS Mode Jasa">
+        <figcaption>14. POS Mode Jasa<span>Pilihan kapster/staff, durasi servis &amp; antrean</span></figcaption>
+      </figure>
     </div>
   </section>
 
+  <!-- BAGIAN PHONE BAWAAN -->
+  <section>
+    <h2>Phone — Alur Kasir F&amp;B Bawaan (390 px)</h2>
+    <div class="grid phone">
+      <figure><img src="phone/01-login.png" alt="Login"><figcaption>01. Login &amp; Koneksi<span>PIN kasir + brand</span></figcaption></figure>
+      <figure><img src="phone/02-pos-kasir.png" alt="POS"><figcaption>02. POS / Kasir<span>Kategori, grid menu, keranjang</span></figcaption></figure>
+      <figure><img src="phone/03-pembayaran.png" alt="Pembayaran"><figcaption>03. Pembayaran<span>Tunai, QRIS, Transfer + kembalian</span></figcaption></figure>
+      <figure><img src="phone/04-transaksi-berhasil.png" alt="Berhasil"><figcaption>04. Transaksi Berhasil<span>Cetak struk / kirim WhatsApp</span></figcaption></figure>
+      <figure><img src="phone/05-laporan-penjualan.png" alt="Laporan"><figcaption>05. Laporan Penjualan<span>KPI, grafik, riwayat</span></figcaption></figure>
+      <figure><img src="phone/06-detail-transaksi.png" alt="Detail"><figcaption>06. Detail Transaksi<span>Reprint struk</span></figcaption></figure>
+      <figure><img src="phone/07-manajemen-menu.png" alt="Menu"><figcaption>07. Manajemen Menu<span>Search, toggle stok, FAB</span></figcaption></figure>
+      <figure><img src="phone/08-pengaturan-printer.png" alt="Printer"><figcaption>08. Pengaturan Printer<span>Bluetooth/USB/LAN, 58/80mm</span></figcaption></figure>
+      <figure><img src="phone/09-kustomisasi-struk.png" alt="Struk"><figcaption>09. Kustomisasi Struk<span>Live preview thermal</span></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- BAGIAN TABLET -->
   <section>
     <h2>Tablet — 1024 px</h2>
     <div class="grid tablet">
-      <figure><img src="tablet/01-login.png" alt="Login tablet"><figcaption>Login<span>Split screen brand + keypad</span></figcaption></figure>
-      <figure><img src="tablet/02-pos-kasir.png" alt="POS tablet"><figcaption>POS / Kasir<span>Grid 4 kolom + panel keranjang</span></figcaption></figure>
-      <figure><img src="tablet/03-pembayaran.png" alt="Pembayaran tablet"><figcaption>Pembayaran<span>Rincian pesanan + kartu bayar</span></figcaption></figure>
-      <figure><img src="tablet/04-transaksi-berhasil.png" alt="Berhasil tablet"><figcaption>Transaksi Berhasil<span>Ringkasan + pratinjau struk</span></figcaption></figure>
-      <figure><img src="tablet/05-laporan-penjualan.png" alt="Laporan tablet"><figcaption>Laporan Penjualan<span>4 KPI, grafik, menu terlaris, tabel</span></figcaption></figure>
-      <figure><img src="tablet/06-detail-transaksi.png" alt="Detail tablet"><figcaption>Detail Transaksi<span>Tabel item + info pembayaran</span></figcaption></figure>
-      <figure><img src="tablet/07-manajemen-menu.png" alt="Menu tablet"><figcaption>Manajemen Menu<span>Tabel menu + toggle stok</span></figcaption></figure>
-      <figure><img src="tablet/08-pengaturan-printer.png" alt="Printer tablet"><figcaption>Pengaturan Printer<span>Pemindai + pengaturan cetak</span></figcaption></figure>
-      <figure><img src="tablet/09-kustomisasi-struk.png" alt="Struk tablet"><figcaption>Kustomisasi Struk<span>Preview besar + form</span></figcaption></figure>
+      <figure><img src="tablet/11-pilih-kategori-bisnis.png" alt="Kategori Bisnis Tablet"><figcaption>11. Pilih Kategori Bisnis Tablet <span class="badge-new">BARU</span><span>3 Card hero besar dengan fitur spesifik F&amp;B, Retail, Jasa</span></figcaption></figure>
+      <figure><img src="tablet/01-login.png" alt="Login tablet"><figcaption>01. Login<span>Split screen brand + keypad</span></figcaption></figure>
+      <figure><img src="tablet/02-pos-kasir.png" alt="POS tablet"><figcaption>02. POS / Kasir<span>Grid 4 kolom + panel keranjang</span></figcaption></figure>
+      <figure><img src="tablet/03-pembayaran.png" alt="Pembayaran tablet"><figcaption>03. Pembayaran<span>Rincian pesanan + kartu bayar</span></figcaption></figure>
+      <figure><img src="tablet/04-transaksi-berhasil.png" alt="Berhasil tablet"><figcaption>04. Transaksi Berhasil<span>Ringkasan + pratinjau struk</span></figcaption></figure>
+      <figure><img src="tablet/05-laporan-penjualan.png" alt="Laporan tablet"><figcaption>05. Laporan Penjualan<span>4 KPI, grafik, menu terlaris, tabel</span></figcaption></figure>
+      <figure><img src="tablet/06-detail-transaksi.png" alt="Detail tablet"><figcaption>06. Detail Transaksi<span>Tabel item + info pembayaran</span></figcaption></figure>
+      <figure><img src="tablet/07-manajemen-menu.png" alt="Menu tablet"><figcaption>07. Manajemen Menu<span>Tabel menu + toggle stok</span></figcaption></figure>
+      <figure><img src="tablet/08-pengaturan-printer.png" alt="Printer tablet"><figcaption>08. Pengaturan Printer<span>Pemindai + pengaturan cetak</span></figcaption></figure>
+      <figure><img src="tablet/09-kustomisasi-struk.png" alt="Struk tablet"><figcaption>09. Kustomisasi Struk<span>Preview besar + form</span></figcaption></figure>
     </div>
   </section>
 </main>
 <footer>
-  File project: <a href="DaunPOS.pen">DaunPOS.pen</a> · PDF: <a href="DaunPOS-semua-halaman.pdf">DaunPOS-semua-halaman.pdf</a><br>
-  Font: Plus Jakarta Sans (heading), Inter (body), IBM Plex Mono (struk).
+  Master Project File: <a href="DaunPOS.pen">DaunPOS.pen (OpenPen / Pencil Studio)</a> · PDF: <a href="DaunPOS-semua-halaman.pdf">DaunPOS-semua-halaman.pdf</a><br>
+  Typography: Plus Jakarta Sans (heading), Inter (body), IBM Plex Mono (struk thermal).<br>
+  Standard Icons: Lucide Vector SVG (utensils, shopping-bag, scissors, qr-code, store, shield-check, printer, barcode, package, clock, dll).
 </footer>
 </body>
 </html>
