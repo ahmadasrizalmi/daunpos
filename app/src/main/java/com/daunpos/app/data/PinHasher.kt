@@ -25,6 +25,7 @@ object PinHasher {
     }
 
     fun verify(pin: String, saltBase64: String, expectedHash: String): Boolean {
+        if (saltBase64.isBlank() || saltBase64 == "-" || expectedHash.isBlank() || expectedHash == "NO_LOGIN") return false
         val candidate = hash(pin, saltBase64)
         // Constant-time comparison to prevent timing side-channel attacks
         return MessageDigest.isEqual(

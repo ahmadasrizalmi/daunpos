@@ -161,12 +161,39 @@ fun ProductMenuCard(
                 } else if (product.stock <= 10) {
                     Box(
                         modifier = Modifier
+                            .align(Alignment.BottomStart)
                             .padding(6.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color(0xCC000000))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text("Sisa ${product.stock}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (product.durationMinutes > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xD9102A1E))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text("⏱ ${product.durationMinutes} mnt", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (product.barcodeSku.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xD92D3748))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(product.barcodeSku, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -49,7 +49,13 @@ object ReceiptBuilder {
         settings.headerLines.forEach { center(it) }
         divider('=')
         line("No    : ${tx.id}")
-        line("Meja  : ${tx.tableNumber}")
+        val destLabel = when {
+            tx.tableNumber.startsWith("Staf:") || tx.tableNumber.startsWith("Staff:") || tx.tableNumber.startsWith("Petugas:") -> "Staf  "
+            tx.tableNumber.startsWith("Retail") || tx.tableNumber == "Pelanggan Umum" || tx.tableNumber == "Member" || tx.tableNumber == "Grosir" -> "Tipe  "
+            else -> "Meja  "
+        }
+        val destValue = if (destLabel == "Staf  ") tx.tableNumber.substringAfter(":").trim() else tx.tableNumber
+        line("$destLabel: $destValue")
         line("Kasir : DaunPOS")
         line("Waktu : $date")
         divider('-')
@@ -59,6 +65,12 @@ object ReceiptBuilder {
             val name = item.name.take(20)
             val qtyStr = "x${item.quantity}"
             line(name)
+            if (item.staffName.isNotBlank() && !destValue.contains(item.staffName, ignoreCase = true)) {
+                line("  * Staf: " + item.staffName.take(width - 10))
+            }
+            if (item.note.isNotBlank()) {
+                line("  * Ket : " + item.note.take(width - 10))
+            }
             line(
                 " ".repeat(2) +
                     formatRupiah(item.price).padEnd(width - 22 - qtyStr.length) +

@@ -20,6 +20,9 @@ class DaunPOSRepository(
     val shifts: Flow<List<ShiftRecord>> =
         db.shiftDao().observeAll().map { list -> list.map { it.toDomain() } }
 
+    val staffList: Flow<List<StoreStaff>> =
+        db.storeStaffDao().observeAll().map { list -> list.map { it.toDomain() } }
+
     val receiptSettings: StateFlow<ReceiptSettings> = settingsStore.receipt
     val printerSettings: StateFlow<PrinterSettings> = settingsStore.printer
     val staticQris: StateFlow<String> = settingsStore.staticQris
@@ -88,35 +91,43 @@ class DaunPOSRepository(
 
         val templateProducts = when (category) {
             BusinessCategory.FNB -> listOf(
-                Product("P001", "Es Kopi Daun", "Kopi", 22000, 8000, true, 45, "", 0, "☕", 0xFFE7F4EA, "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P002", "Americano", "Kopi", 20000, 7000, true, 30, "", 0, "🫘", 0xFFEFE7D6, "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P003", "Cappuccino", "Kopi", 28000, 10000, true, 25, "", 0, "🥛", 0xFFE7F4EA, "https://images.unsplash.com/photo-1587080413959-06b859fb107d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P004", "Cafe Latte", "Kopi", 30000, 11000, true, 35, "", 0, "☕", 0xFFF2E9DE, "https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P005", "Matcha Latte", "Non-Kopi", 28000, 10000, true, 20, "", 0, "🍵", 0xFFE8F6ED, "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P006", "Es Teh Manis", "Non-Kopi", 12000, 3000, true, 80, "", 0, "🧋", 0xFFE8F1FA, "https://images.unsplash.com/photo-1556679343-c7306c1976bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P007", "Nasi Goreng Spesial", "Makanan Berat", 35000, 15000, true, 15, "", 0, "🍛", 0xFFFBE9DC, "https://images.unsplash.com/photo-1603133872878-684f208fb84b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P008", "Butter Croissant", "Snack", 22000, 9000, true, 20, "", 0, "🥐", 0xFFF5EFDF, "https://images.unsplash.com/photo-1555507036-ab1f4038808a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
+                Product("P001", "Es Kopi Daun", "Kopi", 22000, 8000, true, 45, "", 0, "☕", 0xFFE7F4EA, null),
+                Product("P002", "Americano", "Kopi", 20000, 7000, true, 30, "", 0, "🫘", 0xFFEFE7D6, null),
+                Product("P003", "Cappuccino", "Kopi", 28000, 10000, true, 25, "", 0, "🥛", 0xFFE7F4EA, null),
+                Product("P004", "Cafe Latte", "Kopi", 30000, 11000, true, 35, "", 0, "☕", 0xFFF2E9DE, null),
+                Product("P005", "Matcha Latte", "Non-Kopi", 28000, 10000, true, 20, "", 0, "🍵", 0xFFE8F6ED, null),
+                Product("P006", "Es Teh Manis", "Non-Kopi", 12000, 3000, true, 80, "", 0, "🧋", 0xFFE8F1FA, null),
+                Product("P007", "Nasi Goreng Spesial", "Makanan Berat", 35000, 15000, true, 15, "", 0, "🍛", 0xFFFBE9DC, null),
+                Product("P008", "Butter Croissant", "Snack", 22000, 9000, true, 20, "", 0, "🥐", 0xFFF5EFDF, null)
             )
             BusinessCategory.RETAIL -> listOf(
-                Product("P001", "Kaos Polos Combed 30s", "Pakaian", 65000, 35000, true, 40, "899123456001", 0, "👕", 0xFFE7F4EA, "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P002", "Celana Chino Slim Fit", "Pakaian", 135000, 75000, true, 25, "899123456002", 0, "👖", 0xFFEFE7D6, "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P003", "Minuman Isotonik 500ml", "Minuman", 7500, 5000, true, 100, "899123456003", 0, "🥤", 0xFFE8F1FA, "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P004", "Kopi Kaleng Cold Brew", "Minuman", 15000, 9500, true, 40, "899123456004", 0, "☕", 0xFFF2E9DE, "https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P005", "Keripik Kentang Balado 85g", "Snack", 12500, 8000, true, 60, "899123456005", 0, "🍟", 0xFFFBF3D9, "https://images.unsplash.com/photo-1566478989037-eec170784d0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P006", "Roti Sobek Cokelat Keju", "Snack", 16000, 11000, true, 25, "899123456006", 0, "🍞", 0xFFFBE9DC, "https://images.unsplash.com/photo-1509440159596-0249088772ff?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P007", "Baterai Alkaline AA Isi 4", "Aksesoris", 28000, 19000, true, 45, "899123456007", 0, "🔋", 0xFFEFE3DC, "https://images.unsplash.com/photo-1619725002198-6a689b72f41d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
+                Product("P001", "Kaos Polos Combed 30s", "Pakaian", 65000, 35000, true, 40, "899123456001", 0, "👕", 0xFFE7F4EA, null),
+                Product("P002", "Celana Chino Slim Fit", "Pakaian", 135000, 75000, true, 25, "899123456002", 0, "👖", 0xFFEFE7D6, null),
+                Product("P003", "Minuman Isotonik 500ml", "Minuman", 7500, 5000, true, 100, "899123456003", 0, "🥤", 0xFFE8F1FA, null),
+                Product("P004", "Kopi Kaleng Cold Brew", "Minuman", 15000, 9500, true, 40, "899123456004", 0, "☕", 0xFFF2E9DE, null),
+                Product("P005", "Keripik Kentang Balado 85g", "Snack", 12500, 8000, true, 60, "899123456005", 0, "🍟", 0xFFFBF3D9, null),
+                Product("P006", "Roti Sobek Cokelat Keju", "Snack", 16000, 11000, true, 25, "899123456006", 0, "🍞", 0xFFFBE9DC, null),
+                Product("P007", "Baterai Alkaline AA Isi 4", "Aksesoris", 28000, 19000, true, 45, "899123456007", 0, "🔋", 0xFFEFE3DC, null)
             )
             BusinessCategory.SERVICE -> listOf(
-                Product("P001", "Gentlemen Haircut + Cuci", "Haircut", 45000, 0, true, 999, "", 30, "✂️", 0xFFE7F4EA, "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P002", "Haircut Premium + Pijat Bahu", "Haircut", 65000, 0, true, 999, "", 45, "💈", 0xFFEFE7D6, "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P003", "Shaving & Hot Towel Treatment", "Grooming", 35000, 0, true, 999, "", 20, "🪒", 0xFFE8F6ED, "https://images.unsplash.com/photo-1621607512214-68297480165e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P004", "Hair Color Hitam Alami", "Coloring", 85000, 25000, true, 999, "", 60, "🎨", 0xFFF2E9DE, "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P005", "Cuci Rambut + Creambath Herbal", "Treatment", 55000, 10000, true, 999, "", 45, "💆", 0xFFE8F1FA, "https://images.unsplash.com/photo-1519699047748-de8e457a634e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P006", "Paket All-in (Cut + Shave + Spa)", "Paket Hemat", 120000, 15000, true, 999, "", 75, "⭐", 0xFFFBF3D9, "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
+                Product("P001", "Sesi Foto Studio (30 Mnt)", "Studio Foto", 150000, 0, true, 999, "", 30, "📸", 0xFFE7F4EA, null),
+                Product("P002", "Paket Wisuda / Grup (50 Mnt)", "Studio Foto", 250000, 0, true, 999, "", 50, "🎓", 0xFFEFE7D6, null),
+                Product("P003", "Cetak Foto + Frame 10R", "Cetak & Cetakan", 50000, 20000, true, 999, "FOTO10R", 0, "🖼️", 0xFFFBF3D9, null),
+                Product("P004", "Gentlemen Haircut + Cuci", "Haircut", 45000, 0, true, 999, "", 30, "✂️", 0xFFE7F4EA, null),
+                Product("P005", "Haircut Premium + Pijat Bahu", "Haircut", 65000, 0, true, 999, "", 45, "💈", 0xFFEFE7D6, null),
+                Product("P006", "Cuci Rambut + Creambath Herbal", "Treatment", 55000, 10000, true, 999, "", 45, "💆", 0xFFE8F1FA, null),
+                Product("P007", "Servis Ringan / Pengecekan", "Servis & Reparasi", 75000, 0, true, 999, "SRV01", 60, "🛠️", 0xFFEFE3DC, null)
             )
         }
 
         templateProducts.forEach { upsertProduct(it) }
+
+        // Seed default staff for SERVICE if empty
+        if (category == BusinessCategory.SERVICE && db.storeStaffDao().getAll().isEmpty()) {
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-1", "Dimas (Fotografer / Stylist)", "STAFF", "-", "NO_LOGIN", true))
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-2", "Sarah (Editor / Terapis)", "STAFF", "-", "NO_LOGIN", true))
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-3", "Budi (Teknisi / Operator)", "STAFF", "-", "NO_LOGIN", true))
+        }
     }
 
     suspend fun upsertProduct(product: Product) = db.productDao().upsert(product.toEntity())
@@ -133,6 +144,20 @@ class DaunPOSRepository(
         val all = db.productDao().getAll()
         val max = all.mapNotNull { it.id.removePrefix("P").toIntOrNull() }.maxOrNull() ?: 0
         return "P" + (max + 1).toString().padStart(3, '0')
+    }
+
+    suspend fun findProductByBarcodeOrId(code: String): Product? =
+        db.productDao().getByBarcodeOrId(code.trim())?.toDomain()
+
+    suspend fun addStaff(name: String, role: String = "STAFF"): StoreStaff {
+        val id = "STF-${System.currentTimeMillis()}"
+        val entity = com.daunpos.app.data.local.StoreStaffEntity(id = id, name = name, role = role, pinSalt = "-", pinHash = "NO_LOGIN", isActive = true)
+        db.storeStaffDao().upsert(entity)
+        return entity.toDomain()
+    }
+
+    suspend fun deleteStaff(id: String) {
+        db.storeStaffDao().deleteById(id)
     }
 
     suspend fun insertTransaction(tx: Transaction) {

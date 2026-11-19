@@ -193,6 +193,7 @@ fun MenuManagementScreen(vm: DaunPOSViewModel) {
         ProductDialog(
             initial = editing,
             nextId = vm.nextProductId(),
+            existingCategories = products.map { it.category }.distinct().filter { it.isNotBlank() },
             onDismiss = { showDialog = false },
             onSave = { product ->
                 vm.upsertProduct(product)
@@ -307,6 +308,7 @@ private fun ProductRow(
 private fun ProductDialog(
     initial: Product?,
     nextId: String,
+    existingCategories: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (Product) -> Unit
 ) {
@@ -314,15 +316,19 @@ private fun ProductDialog(
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var priceText by remember { mutableStateOf(initial?.price?.toString() ?: "") }
     var stockText by remember { mutableStateOf(initial?.stock?.toString() ?: "50") }
-    var category by remember { mutableStateOf(initial?.category ?: "Kopi") }
+    var category by remember { mutableStateOf(initial?.category ?: existingCategories.firstOrNull() ?: "Umum") }
+    var barcodeSku by remember { mutableStateOf(initial?.barcodeSku ?: "") }
+    var durationMinutesText by remember { mutableStateOf(if ((initial?.durationMinutes ?: 0) > 0) initial!!.durationMinutes.toString() else "") }
     var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
     var catExpanded by remember { mutableStateOf(false) }
 
-    val categories = CATEGORIES.filter { it != "Semua" }
+    val categories = remember(existingCategories) {
+        (existingCategories + listOf("Makanan", "Minuman", "Pakaian", "Aksesoris", "Studio Foto", "Haircut", "Treatment", "Servis", "Umum")).distinct()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isEdit) "Ubah Menu" else "Tambah Menu Baru", fontWeight = FontWeight.Bold) },
+        title = { Text(if (isEdit) "Ubah Menu / Layanan" else "Tambah Menu / Layanan Baru", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -331,7 +337,7 @@ private fun ProductDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama Menu") },
+                    label = { Text("Nama Menu / Layanan") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -340,22 +346,10 @@ private fun ProductDialog(
                 Box(Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = category,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Kategori") },
-                        modifier = Modifier.fillMaxWidth().clickable { catExpanded = true }
+                        onValueChange = { category = it },
+                        label = { Text("Kategori (Ketik atau Pilih)") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
-                        categories.forEach { c ->
-                            DropdownMenuItem(
-                                text = { Text(c) },
-                                onClick = {
-                                    category = c
-                                    catExpanded = false
-                                }
-                            )
-                        }
-                    }
                 }
 
                 OutlinedTextField(
@@ -370,7 +364,26 @@ private fun ProductDialog(
                 OutlinedTextField(
                     value = stockText,
                     onValueChange = { v -> stockText = v.filter { it.isDigit() } },
-                    label = { Text("Kuantitas Stok (Porsi)") },
+                    label = { Text("Kuantitas Stok / Kuota") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = barcodeSku,
+                    onValueChange = { barcodeSku = it },
+                    label = { Text("Barcode / SKU (Opsional, Retail)") },
+                    placeholder = { Text("Contoh: 899123456001") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = durationMinutesText,
+                    onValueChange = { v -> durationMinutesText = v.filter { it.isDigit() } },
+                    label = { Text("Estimasi Durasi (Menit, Opsional Jasa)") },
+                    placeholder = { Text("Contoh: 30") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -396,10 +409,13 @@ private fun ProductDialog(
                             Product(
                                 id = initial?.id ?: nextId,
                                 name = name.trim(),
-                                category = category,
+                                category = category.trim().ifBlank { "Umum" },
                                 price = price,
+                                costPrice = initial?.costPrice ?: 0,
                                 stock = stock,
                                 available = stock > 0,
+                                barcodeSku = barcodeSku.trim(),
+                                durationMinutes = durationMinutesText.toIntOrNull() ?: 0,
                                 emoji = initial?.emoji ?: "🍽️",
                                 colorHex = initial?.colorHex ?: 0xFFE7F4EA,
                                 imageUrl = imageUrl.ifBlank { null }

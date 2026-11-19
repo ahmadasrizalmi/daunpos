@@ -35,8 +35,9 @@ class BusinessCategoryTest {
 
         val service = BusinessCategory.SERVICE
         assertEquals(0, service.defaultTax)
-        assertTrue(service.features.contains("Pilihan Staf / Kapster"))
+        assertTrue(service.features.contains("Pilihan Staf Pelaksana"))
         assertTrue(service.features.contains("Durasi Pengerjaan"))
+        assertTrue(service.features.contains("Catatan Layanan"))
     }
 
     @Test

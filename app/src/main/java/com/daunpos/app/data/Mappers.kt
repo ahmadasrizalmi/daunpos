@@ -3,6 +3,7 @@ package com.daunpos.app.data
 import com.daunpos.app.data.local.ProductEntity
 import com.daunpos.app.data.local.ShiftEntity
 import com.daunpos.app.data.local.StoreProfileEntity
+import com.daunpos.app.data.local.StoreStaffEntity
 import com.daunpos.app.data.local.TransactionEntity
 import org.json.JSONArray
 
@@ -90,6 +91,22 @@ fun ShiftRecord.toEntity(): ShiftEntity = ShiftEntity(
     status = status
 )
 
+fun StoreStaffEntity.toDomain(): StoreStaff = StoreStaff(
+    id = id,
+    name = name,
+    role = role,
+    isActive = isActive
+)
+
+fun StoreStaff.toEntity(pinSalt: String = "", pinHash: String = ""): StoreStaffEntity = StoreStaffEntity(
+    id = id,
+    name = name,
+    role = role,
+    pinSalt = pinSalt,
+    pinHash = pinHash,
+    isActive = isActive
+)
+
 fun TransactionEntity.toDomain(): Transaction {
     val items = runCatching {
         val arr = JSONArray(itemsJson)
@@ -100,7 +117,9 @@ fun TransactionEntity.toDomain(): Transaction {
                 name = obj.getString("name"),
                 price = obj.getInt("price"),
                 quantity = obj.getInt("quantity"),
-                emoji = obj.optString("emoji", "🍽️")
+                emoji = obj.optString("emoji", "🍽️"),
+                note = obj.optString("note", ""),
+                staffName = obj.optString("staffName", "")
             )
         }
     }.getOrDefault(emptyList())
@@ -132,6 +151,8 @@ fun Transaction.toEntity(): TransactionEntity {
                 put("price", item.price)
                 put("quantity", item.quantity)
                 put("emoji", item.emoji)
+                put("note", item.note)
+                put("staffName", item.staffName)
             }
         )
     }

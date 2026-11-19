@@ -13,8 +13,8 @@ android {
         applicationId = "com.daunpos.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "2.0.0"
     }
 
     signingConfigs {
