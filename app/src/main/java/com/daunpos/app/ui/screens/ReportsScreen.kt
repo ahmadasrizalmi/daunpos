@@ -62,6 +62,7 @@ import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
 import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,7 +79,7 @@ fun ReportsScreen(
     onOpenDetail: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val transactions by vm.transactions.collectAsState()
     var filter by remember { mutableStateOf("Hari Ini") }

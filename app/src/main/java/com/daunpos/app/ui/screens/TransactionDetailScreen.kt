@@ -65,6 +65,7 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,7 +79,7 @@ fun TransactionDetailScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
     val scope = rememberCoroutineScope()
 
     val transactions by vm.transactions.collectAsState()

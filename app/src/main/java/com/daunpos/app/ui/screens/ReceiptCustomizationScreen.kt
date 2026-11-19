@@ -58,6 +58,7 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 
 @Composable
 fun ReceiptCustomizationScreen(
@@ -65,7 +66,7 @@ fun ReceiptCustomizationScreen(
     onBack: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val settings by vm.receiptSettings.collectAsState()
 

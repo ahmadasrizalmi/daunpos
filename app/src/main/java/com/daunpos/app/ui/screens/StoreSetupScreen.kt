@@ -1,5 +1,8 @@
 package com.daunpos.app.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,9 +26,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.RocketLaunch
@@ -50,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -58,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.BusinessCategory
 import com.daunpos.app.data.qris.QrisConverter
+import com.daunpos.app.ui.components.QrisTutorialDialog
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.Green
@@ -97,10 +105,32 @@ fun StoreSetupScreen(
 
     var isSubmitting by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    var showTutorialDialog by remember { mutableStateOf(false) }
+    var scanFeedback by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val decoded = QrisConverter.decodeQrFromUri(context, uri)
+            if (!decoded.isNullOrBlank()) {
+                staticQris = decoded.trim()
+                scanFeedback = "✅ QRIS Berhasil Terbaca dari Foto!"
+            } else {
+                scanFeedback = "⚠️ QR Code tidak terdeteksi pada gambar. Pastikan foto QRIS jelas."
+            }
+        }
+    }
+
     // Parse QRIS info
     val merchantInfo = remember(staticQris) {
         if (staticQris.isBlank()) null
         else QrisConverter.parseMerchantInfo(staticQris)
+    }
+
+    if (showTutorialDialog) {
+        QrisTutorialDialog(onDismiss = { showTutorialDialog = false })
     }
 
     Box(
@@ -108,10 +138,12 @@ fun StoreSetupScreen(
             .fillMaxSize()
             .background(Bg)
             .statusBarsPadding()
-            .navigationBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -217,7 +249,7 @@ fun StoreSetupScreen(
                 // Section 2: QRIS Mandiri
                 SectionCard(title = "QRIS Dinamis Mandiri", icon = Icons.Filled.QrCode) {
                     Text(
-                        text = "Masukkan payload teks string QRIS statis yang Anda peroleh dari BCA, Mandiri, BRI, Dana, GoPay, atau OVO Anda.",
+                        text = "Gunakan stiker QRIS statis merchant Anda (BCA, Mandiri, BRI, Dana, GoPay, OVO). Sistem akan mengonversinya menjadi dinamis dengan nominal transaksi otomatis.",
                         fontSize = 12.sp,
                         color = InkSoft,
                         lineHeight = 16.sp
@@ -225,9 +257,47 @@ fun StoreSetupScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Shortcut: Scan Foto & Panduan
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = GreenSoft, contentColor = GreenDeep),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Scan Foto QRIS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showTutorialDialog = true },
+                            modifier = Modifier.height(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Panduan", color = InkSoft, fontSize = 11.sp)
+                        }
+                    }
+
+                    scanFeedback?.let { msg ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(msg, fontSize = 11.sp, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     OutlinedTextField(
                         value = staticQris,
-                        onValueChange = { staticQris = it },
+                        onValueChange = {
+                            staticQris = it
+                            scanFeedback = null
+                        },
                         label = { Text("String QRIS Statis Merchant (EMVCo)") },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 3,

@@ -15,11 +15,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,10 +42,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.daunpos.app.data.Product
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.DangerSoft
 import com.daunpos.app.ui.theme.Green
@@ -265,5 +274,144 @@ fun EmptyState(
             color = InkSoft,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+fun QrisTutorialDialog(
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(GreenSoft),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Panduan QRIS Toko",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Ink
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Tutup", tint = InkSoft)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Cara 1 (Paling Mudah)
+                TutorialStepItem(
+                    number = "1",
+                    title = "Foto / Screenshot QRIS (Paling Mudah)",
+                    desc = "Cukup foto stiker QRIS fisik toko Anda atau ambil screenshot QRIS dari m-Banking (BCA, Mandiri, BRI, DANA, GoPay, OVO, ShopeePay). Lalu klik tombol 'Scan / Pilih Foto QRIS'. DaunPOS membaca kodenya langsung secara offline!",
+                    isRecommended = true
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Cara 2
+                TutorialStepItem(
+                    number = "2",
+                    title = "Via Google Lens / Scanner HP",
+                    desc = "Buka aplikasi Google Lens atau pemindai QR bawaan HP Anda. Arahkan ke stiker QRIS. Salin teks kode yang muncul (diawali '00020101...'), lalu tempel (paste) ke kolom QRIS di DaunPOS.",
+                    isRecommended = false
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Cara 3
+                TutorialStepItem(
+                    number = "3",
+                    title = "Mode Uji Coba / Demo",
+                    desc = "Jika belum memiliki stiker QRIS resmi, Anda dapat menekan tombol 'Pakai Demo' untuk langsung mencoba transaksi dan mencetak struk QRIS dinamis di kasir.",
+                    isRecommended = false
+                )
+
+                Spacer(Modifier.height(18.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenDeep, contentColor = Color.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Mengerti & Kembali", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TutorialStepItem(
+    number: String,
+    title: String,
+    desc: String,
+    isRecommended: Boolean = false
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isRecommended) GreenSoft.copy(alpha = 0.5f) else Bg)
+            .border(1.dp, if (isRecommended) Green.copy(alpha = 0.5f) else Line, RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (isRecommended) GreenDeep else InkSoft),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(number, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Ink)
+                    if (isRecommended) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(GreenDeep)
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text("Rekomendasi", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(desc, style = MaterialTheme.typography.bodySmall, color = InkSoft, lineHeight = 17.sp)
+            }
+        }
     }
 }

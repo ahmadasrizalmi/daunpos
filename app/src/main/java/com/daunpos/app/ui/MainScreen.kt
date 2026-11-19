@@ -58,6 +58,7 @@ import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
 import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.isTablet
 
 private data class Tab(
     val label: String,
@@ -77,7 +78,7 @@ fun MainScreen(
     onNavigate: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     var selected by remember { mutableStateOf(0) }
     val bluetooth by vm.bluetoothState.collectAsState()

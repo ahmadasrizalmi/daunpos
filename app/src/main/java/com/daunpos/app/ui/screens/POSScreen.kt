@@ -88,6 +88,7 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -101,7 +102,7 @@ fun POSScreen(
     onPrinterSettings: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val products by vm.products.collectAsState()
     val cart by vm.cart.collectAsState()
@@ -231,7 +232,7 @@ fun POSScreen(
                     EmptyState("🔍", "Katalog kosong", "Tidak ada item yang sesuai kriteria pencarian.")
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Adaptive(minSize = 130.dp),
                         contentPadding = PaddingValues(bottom = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -244,10 +245,10 @@ fun POSScreen(
                 }
             }
 
-            // Right Pane: Sticky Order Summary / Cart Panel (380dp)
+            // Right Pane: Sticky Order Summary / Cart Panel (350dp)
             Box(
                 modifier = Modifier
-                    .width(380.dp)
+                    .width(350.dp)
                     .fillMaxHeight()
                     .background(Color.White)
                     .border(1.dp, Line)
@@ -255,92 +256,89 @@ fun POSScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(16.dp)
                 ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Pesanan", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Pesanan", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
 
-                            // Adaptive Destination Selector (Meja vs Pelanggan vs Staf)
-                            AdaptiveDestinationBadge(
-                                category = category,
-                                selectedTable = selectedTable,
-                                onOpenFnbDropdown = { tableMenuOpen = true },
-                                onOpenStaffDialog = { showStaffDialog = true }
-                            )
+                        // Adaptive Destination Selector (Meja vs Pelanggan vs Staf)
+                        AdaptiveDestinationBadge(
+                            category = category,
+                            selectedTable = selectedTable,
+                            onOpenFnbDropdown = { tableMenuOpen = true },
+                            onOpenStaffDialog = { showStaffDialog = true }
+                        )
 
-                            // Dropdown for F&B or Retail
-                            if (!isService) {
-                                DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
-                                    val options = if (isRetail) retailCustomerOptions else fnbTableOptions
-                                    options.forEach { opt ->
-                                        DropdownMenuItem(
-                                            text = { Text(opt) },
-                                            onClick = {
-                                                vm.setTable(opt)
-                                                tableMenuOpen = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Service Duration Summary Header
-                        if (isService && totalDurationMinutes > 0) {
-                            Spacer(Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(GreenSoft)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.Schedule, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "Estimasi Pengerjaan: $totalDurationMinutes Menit",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = GreenDeep,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-
-                        if (cart.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(260.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Belum ada item di keranjang", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 380.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(cart, key = { it.product.id }) { item ->
-                                    CartItemRow(
-                                        item = item,
-                                        isServiceMode = isService,
-                                        onIncrement = { vm.increment(item.product.id) },
-                                        onDecrement = { vm.decrement(item.product.id) },
-                                        onRemove = { vm.removeFromCart(item.product.id) },
-                                        onEditNote = { activeNoteItem = item }
+                        // Dropdown for F&B or Retail
+                        if (!isService) {
+                            DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
+                                val options = if (isRetail) retailCustomerOptions else fnbTableOptions
+                                options.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text(opt) },
+                                        onClick = {
+                                            vm.setTable(opt)
+                                            tableMenuOpen = false
+                                        }
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // Service Duration Summary Header
+                    if (isService && totalDurationMinutes > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(GreenSoft)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Schedule, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Estimasi Pengerjaan: $totalDurationMinutes Menit",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GreenDeep,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    if (cart.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Belum ada item di keranjang", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(cart, key = { it.product.id }) { item ->
+                                CartItemRow(
+                                    item = item,
+                                    isServiceMode = isService,
+                                    onIncrement = { vm.increment(item.product.id) },
+                                    onDecrement = { vm.decrement(item.product.id) },
+                                    onRemove = { vm.removeFromCart(item.product.id) },
+                                    onEditNote = { activeNoteItem = item }
+                                )
                             }
                         }
                     }
@@ -349,10 +347,10 @@ fun POSScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 10.dp)
+                            .padding(top = 8.dp)
                     ) {
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Subtotal", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
@@ -373,25 +371,25 @@ fun POSScreen(
                             }
                         }
 
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Total", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                             Text(formatRupiah(vm.cartTotal), style = MaterialTheme.typography.headlineSmall, color = GreenDeep, fontWeight = FontWeight.Bold)
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(10.dp))
 
                         Button(
                             onClick = onCheckout,
                             enabled = cart.isNotEmpty(),
                             colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp)
+                                .height(48.dp)
                         ) {
-                            Text("Bayar " + formatRupiah(vm.cartTotal), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Bayar " + formatRupiah(vm.cartTotal), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }

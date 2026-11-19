@@ -34,10 +34,10 @@ class QrisConverterTest {
         assertEquals("BANDUNG", info.city)
         assertTrue("Checksum CRC16 dari payload dinamis yang baru harus valid", info.isValidCrc)
 
-        // Cek secara spesifik bahwa Tag 01 tetap 11 dan Tag 54 ada
+        // Cek secara spesifik bahwa Tag 01 berubah menjadi 12 (Dinamis) dan Tag 54 ada
         val tlvs = QrisConverter.parseTlvs(dynamicPayload)
         val tag01 = tlvs.find { it.tag == "01" }
-        assertEquals("11", tag01?.value)
+        assertEquals("12", tag01?.value)
 
         val tag54 = tlvs.find { it.tag == "54" }
         assertNotNull(tag54)

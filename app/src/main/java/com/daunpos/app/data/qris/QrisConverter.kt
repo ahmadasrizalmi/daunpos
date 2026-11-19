@@ -1,9 +1,18 @@
 package com.daunpos.app.data.qris
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
 import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.BitMatrix
+import com.google.zxing.common.GlobalHistogramBinarizer
+import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.util.Locale
@@ -92,12 +101,15 @@ object QrisConverter {
         if (tlvs.isEmpty()) return clean
 
         // 1. Tag 01: Point of Initiation Method
-        // Menjaga Tag 01 tetap '11' (atau nilai bawaan QRIS statis merchant).
-        // Sesuai standar ASPI/EMVCo, Tag 01=11 yang disertai Tag 54 (Transaction Amount)
-        // didukung luas dan aman diproses oleh seluruh bank & e-wallet tanpa memerlukan Tag 28 URL.
+        // Wajib diubah menjadi '12' (Dynamic QR) sesuai standar ASPI/EMVCo saat Tag 54 (Transaction Amount)
+        // disisipkan. Jika Tag 01 tetap '11' (Static) namun berisi nominal Tag 54, aplikasi perbankan
+        // (BCA Mobile, Livin Mandiri, BRImo, dll) akan menolak transaksi dengan error:
+        // "Pastikan QR yang di-scan berlogo QRIS".
         val tag01Index = tlvs.indexOfFirst { it.tag == "01" }
-        if (tag01Index == -1) {
-            tlvs.add(0, QrisTlv("01", 2, "11"))
+        if (tag01Index != -1) {
+            tlvs[tag01Index] = QrisTlv("01", 2, "12")
+        } else {
+            tlvs.add(0, QrisTlv("01", 2, "12"))
         }
 
         // 2. Tag 53: Currency Code (360 = IDR)
@@ -233,5 +245,59 @@ object QrisConverter {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         return bitmap
+    }
+
+    /**
+     * Membaca dan mendekode QR code dari Android Bitmap secara 100% offline & lokal via ZXing.
+     */
+    fun decodeQrFromBitmap(bitmap: Bitmap): String? {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val source = RGBLuminanceSource(width, height, pixels)
+        val hints = mapOf(
+            DecodeHintType.TRY_HARDER to true,
+            DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)
+        )
+        // Percobaan 1: HybridBinarizer (optimal untuk kontras tinggi/normal)
+        try {
+            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
+            if (!result.text.isNullOrBlank()) return result.text
+        } catch (_: Exception) {}
+
+        // Percobaan 2: GlobalHistogramBinarizer (fallback untuk foto/kertas dengan bayangan/cahaya redup)
+        try {
+            val binaryBitmap = BinaryBitmap(GlobalHistogramBinarizer(source))
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
+            if (!result.text.isNullOrBlank()) return result.text
+        } catch (_: Exception) {}
+
+        return null
+    }
+
+    /**
+     * Membaca dan mendekode QR code dari Uri gambar (Galeri / Foto) dengan downsampling aman memori.
+     */
+    fun decodeQrFromUri(context: Context, uri: Uri): String? {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            val maxDim = maxOf(options.outWidth, options.outHeight)
+            var sampleSize = 1
+            while (maxDim / sampleSize > 1200) {
+                sampleSize *= 2
+            }
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return null
+            decodeQrFromBitmap(bitmap)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

@@ -60,6 +60,7 @@ import com.daunpos.app.ui.theme.GreenDeep
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 
 @Composable
 fun SuccessScreen(
@@ -69,7 +70,7 @@ fun SuccessScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val transactions by vm.transactions.collectAsState()
     val lastTx by vm.lastTransaction.collectAsState()

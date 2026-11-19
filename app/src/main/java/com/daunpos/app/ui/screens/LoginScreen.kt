@@ -56,6 +56,7 @@ import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
 import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.launch
 
 @Composable
@@ -65,7 +66,7 @@ fun LoginScreen(
     onSetupNewStore: () -> Unit = {}
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     var pin by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(UserRole.KASIR) }

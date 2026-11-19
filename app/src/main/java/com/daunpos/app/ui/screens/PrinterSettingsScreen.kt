@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,8 +37,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Radar
@@ -75,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.qris.QrisConverter
+import com.daunpos.app.ui.components.QrisTutorialDialog
 import com.daunpos.app.ui.components.StatusBadge
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
@@ -85,6 +89,7 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 
 private val connectionTypes = listOf("Bluetooth", "USB", "LAN / Wi-Fi")
 
@@ -97,7 +102,7 @@ fun PrinterSettingsScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val bluetooth by vm.bluetoothState.collectAsState()
     val receipt by vm.receiptSettings.collectAsState()
@@ -610,10 +615,28 @@ private fun ToggleRow(
 private fun QrisSettingsCard(
     vm: DaunPOSViewModel
 ) {
+    val context = LocalContext.current
     val staticQris by vm.staticQris.collectAsState()
     val bluetooth by vm.bluetoothState.collectAsState()
     var input by remember(staticQris) { mutableStateOf(staticQris) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
+    var showTutorialDialog by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val decoded = QrisConverter.decodeQrFromUri(context, uri)
+            if (!decoded.isNullOrBlank()) {
+                input = decoded.trim()
+                vm.updateStaticQris(decoded.trim())
+                val info = QrisConverter.parseMerchantInfo(decoded)
+                saveMessage = "✅ QRIS Berhasil Terbaca & Tersimpan! (${info.merchantName})"
+            } else {
+                saveMessage = "⚠️ QR Code tidak terdeteksi pada gambar. Pastikan foto jelas dan berlogo QRIS."
+            }
+        }
+    }
 
     val merchantInfo = remember(input) {
         if (input.isNotBlank()) QrisConverter.parseMerchantInfo(input.trim()) else null
@@ -628,6 +651,10 @@ private fun QrisSettingsCard(
                 null
             }
         } else null
+    }
+
+    if (showTutorialDialog) {
+        QrisTutorialDialog(onDismiss = { showTutorialDialog = false })
     }
 
     Box(
@@ -676,6 +703,34 @@ private fun QrisSettingsCard(
                 color = InkSoft,
                 lineHeight = 18.sp
             )
+
+            // Tombol Shortcut: Scan Foto QRIS & Panduan Tutorial
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = { photoPickerLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenSoft, contentColor = GreenDeep),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Scan / Pilih Foto QRIS", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                OutlinedButton(
+                    onClick = { showTutorialDialog = true },
+                    modifier = Modifier.height(42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = InkSoft, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Panduan", color = InkSoft, fontSize = 12.sp)
+                }
+            }
 
             // Merchant status badge
             if (merchantInfo != null && merchantInfo.isValidCrc) {

@@ -1,5 +1,8 @@
 package com.daunpos.app.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,11 +28,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
@@ -74,6 +79,7 @@ import com.daunpos.app.data.formatRupiah
 import com.daunpos.app.data.qris.QrisConverter
 import com.daunpos.app.notification.BankNotificationEvent
 import com.daunpos.app.notification.PaymentNotificationBridge
+import com.daunpos.app.ui.components.QrisTutorialDialog
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.Green
@@ -83,6 +89,7 @@ import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
 import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.delay
 
 @Composable
@@ -92,7 +99,7 @@ fun PaymentScreen(
     onSuccess: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val cart by vm.cart.collectAsState()
     val tableNumber by vm.selectedTable.collectAsState()
@@ -521,8 +528,25 @@ private fun PaymentOptionsContent(
     onSimulateQrisPaid: () -> Unit,
     onSubmit: () -> Unit
 ) {
+    val context = LocalContext.current
     val bluetooth by vm.bluetoothState.collectAsState()
     val staticQris by vm.staticQris.collectAsState()
+    var showTutorialDialog by remember { mutableStateOf(false) }
+    var qrisScanFeedback by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val decoded = QrisConverter.decodeQrFromUri(context, uri)
+            if (!decoded.isNullOrBlank()) {
+                vm.updateStaticQris(decoded.trim())
+                qrisScanFeedback = "✅ QRIS Berhasil Terbaca & Tersimpan!"
+            } else {
+                qrisScanFeedback = "⚠️ QR Code tidak terdeteksi pada gambar."
+            }
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
@@ -699,19 +723,51 @@ private fun PaymentOptionsContent(
                                 color = Ink
                             )
                             Text(
-                                text = "Silakan masukkan string QRIS statis merchant Anda di menu Pengaturan, atau gunakan QRIS contoh untuk mode demo.",
+                                text = "Silakan scan foto stiker QRIS merchant Anda atau gunakan QRIS contoh untuk mode demo.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkSoft,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(Modifier.height(4.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = { photoPickerLauncher.launch("image/*") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = GreenSoft, contentColor = GreenDeep),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Scan Foto QRIS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showTutorialDialog = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Panduan", color = InkSoft, fontSize = 12.sp)
+                                }
+                            }
+
                             OutlinedButton(
                                 onClick = { vm.updateStaticQris(QrisConverter.DEMO_SAMPLE_STATIC_QRIS) },
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Gunakan QRIS Contoh (Mode Demo)", fontSize = 12.sp)
                             }
+
+                            qrisScanFeedback?.let { msg ->
+                                Text(msg, fontSize = 11.sp, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                            }
                         }
+                    }
+                    if (showTutorialDialog) {
+                        QrisTutorialDialog(onDismiss = { showTutorialDialog = false })
                     }
                 } else {
                     // Generate Real Dynamic QRIS Payload & Real Bitmap
