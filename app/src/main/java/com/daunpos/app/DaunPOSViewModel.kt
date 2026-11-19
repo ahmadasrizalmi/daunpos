@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.daunpos.app.data.CartItem
 import com.daunpos.app.data.BusinessCategory
 import com.daunpos.app.data.StoreProfile
+import com.daunpos.app.data.StoreStaff
 import com.daunpos.app.data.OrderItem
 import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.PrinterSettings
@@ -44,6 +45,8 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     val staticQris: StateFlow<String> = repository.staticQris
     val isOnboardingCompleted: StateFlow<Boolean> = repository.isOnboardingCompleted
     val storeProfile: StateFlow<StoreProfile> = repository.storeProfile
+    val staffList: StateFlow<List<StoreStaff>> =
+        repository.staffList.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun completeOnboarding(
         name: String,
@@ -137,6 +140,19 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _activeShift.value = repository.getActiveShift()
         }
+
+        // Sinkronkan default meja / tipe pelanggan / staf sesuai jenis usaha
+        viewModelScope.launch {
+            repository.storeProfile.collect { profile ->
+                if (_selectedTable.value == "Meja 04" || _selectedTable.value.isBlank()) {
+                    _selectedTable.value = when (profile.businessCategory) {
+                        BusinessCategory.FNB -> "Take Away"
+                        BusinessCategory.RETAIL -> "Pelanggan Umum"
+                        BusinessCategory.SERVICE -> "Staf: Umum"
+                    }
+                }
+            }
+        }
     }
 
     suspend fun login(pin: String, role: UserRole): User? = withContext(Dispatchers.Default) {
@@ -212,6 +228,49 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         _discount.value = 0
     }
 
+    fun updateItemNote(productId: String, note: String) {
+        _cart.update { current ->
+            current.map {
+                if (it.product.id == productId) it.copy(note = note) else it
+            }
+        }
+    }
+
+    fun updateItemStaff(productId: String, staff: String) {
+        _cart.update { current ->
+            current.map {
+                if (it.product.id == productId) it.copy(staffName = staff) else it
+            }
+        }
+    }
+
+    // ---------- Staff Management ----------
+    fun addStaff(name: String, role: String = "STAFF") {
+        viewModelScope.launch {
+            val newStaff = repository.addStaff(name, role)
+            _selectedTable.value = "Staf: ${newStaff.name}"
+        }
+    }
+
+    fun deleteStaff(id: String) {
+        viewModelScope.launch { repository.deleteStaff(id) }
+    }
+
+    // ---------- Barcode & SKU ----------
+    fun scanBarcode(code: String, onResult: (Product?) -> Unit) {
+        if (code.isBlank()) {
+            onResult(null)
+            return
+        }
+        viewModelScope.launch {
+            val found = repository.findProductByBarcodeOrId(code.trim())
+            if (found != null) {
+                addToCart(found)
+            }
+            onResult(found)
+        }
+    }
+
     // ---------- Products ----------
     fun toggleProductAvailable(productId: String) {
         viewModelScope.launch { repository.toggleProductAvailable(productId) }
@@ -238,7 +297,11 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
                 name = it.product.name,
                 price = it.product.price,
                 quantity = it.quantity,
-                emoji = it.product.emoji
+                emoji = it.product.emoji,
+                note = it.note,
+                staffName = it.staffName.ifBlank {
+                    if (_selectedTable.value.startsWith("Staf:")) _selectedTable.value.substringAfter(":").trim() else ""
+                }
             )
         }
         val id = repository.nextInvoiceNumber()

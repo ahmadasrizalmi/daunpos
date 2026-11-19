@@ -30,9 +30,9 @@ enum class BusinessCategory(
     SERVICE(
         id = "SERVICE",
         title = "Jasa & Layanan",
-        subtitle = "Barbershop, Salon, Laundry, Bengkel",
-        description = "Pilihan staf/kapster bertugas, durasi dan estimasi selesai pengerjaan, serta pencatatan komisi tim.",
-        features = listOf("Pilihan Staf / Kapster", "Durasi Pengerjaan", "Pencatatan Komisi", "Catatan Pelanggan"),
+        subtitle = "Studio Foto, Barbershop, Salon, Servis, Laundry",
+        description = "Pilihan staf pelaksana (fotografer/teknisi/stylist), estimasi durasi, catatan khusus order, dan struk fleksibel.",
+        features = listOf("Pilihan Staf Pelaksana", "Durasi Pengerjaan", "Pencatatan Komisi", "Catatan Layanan"),
         defaultTax = 0
     );
 
@@ -71,7 +71,15 @@ data class Product(
 data class CartItem(
     val product: Product,
     val quantity: Int,
-    val note: String = ""
+    val note: String = "",
+    val staffName: String = ""
+)
+
+data class StoreStaff(
+    val id: String,
+    val name: String,
+    val role: String = "STAFF",
+    val isActive: Boolean = true
 )
 
 data class OrderItem(
@@ -79,7 +87,9 @@ data class OrderItem(
     val name: String,
     val price: Int,
     val quantity: Int,
-    val emoji: String
+    val emoji: String,
+    val note: String = "",
+    val staffName: String = ""
 ) {
     val total: Int get() = price * quantity
 }

@@ -20,6 +20,9 @@ class DaunPOSRepository(
     val shifts: Flow<List<ShiftRecord>> =
         db.shiftDao().observeAll().map { list -> list.map { it.toDomain() } }
 
+    val staffList: Flow<List<StoreStaff>> =
+        db.storeStaffDao().observeAll().map { list -> list.map { it.toDomain() } }
+
     val receiptSettings: StateFlow<ReceiptSettings> = settingsStore.receipt
     val printerSettings: StateFlow<PrinterSettings> = settingsStore.printer
     val staticQris: StateFlow<String> = settingsStore.staticQris
@@ -107,16 +110,24 @@ class DaunPOSRepository(
                 Product("P007", "Baterai Alkaline AA Isi 4", "Aksesoris", 28000, 19000, true, 45, "899123456007", 0, "🔋", 0xFFEFE3DC, "https://images.unsplash.com/photo-1619725002198-6a689b72f41d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
             )
             BusinessCategory.SERVICE -> listOf(
-                Product("P001", "Gentlemen Haircut + Cuci", "Haircut", 45000, 0, true, 999, "", 30, "✂️", 0xFFE7F4EA, "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P002", "Haircut Premium + Pijat Bahu", "Haircut", 65000, 0, true, 999, "", 45, "💈", 0xFFEFE7D6, "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P003", "Shaving & Hot Towel Treatment", "Grooming", 35000, 0, true, 999, "", 20, "🪒", 0xFFE8F6ED, "https://images.unsplash.com/photo-1621607512214-68297480165e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P004", "Hair Color Hitam Alami", "Coloring", 85000, 25000, true, 999, "", 60, "🎨", 0xFFF2E9DE, "https://images.unsplash.com/photo-1560066984-138dadb4c035?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P005", "Cuci Rambut + Creambath Herbal", "Treatment", 55000, 10000, true, 999, "", 45, "💆", 0xFFE8F1FA, "https://images.unsplash.com/photo-1519699047748-de8e457a634e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
-                Product("P006", "Paket All-in (Cut + Shave + Spa)", "Paket Hemat", 120000, 15000, true, 999, "", 75, "⭐", 0xFFFBF3D9, "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
+                Product("P001", "Sesi Foto Studio (30 Mnt)", "Studio Foto", 150000, 0, true, 999, "", 30, "📸", 0xFFE7F4EA, "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P002", "Paket Wisuda / Grup (50 Mnt)", "Studio Foto", 250000, 0, true, 999, "", 50, "🎓", 0xFFEFE7D6, "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P003", "Cetak Foto + Frame 10R", "Cetak & Cetakan", 50000, 20000, true, 999, "FOTO10R", 0, "🖼️", 0xFFFBF3D9, "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P004", "Gentlemen Haircut + Cuci", "Haircut", 45000, 0, true, 999, "", 30, "✂️", 0xFFE7F4EA, "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P005", "Haircut Premium + Pijat Bahu", "Haircut", 65000, 0, true, 999, "", 45, "💈", 0xFFEFE7D6, "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P006", "Cuci Rambut + Creambath Herbal", "Treatment", 55000, 10000, true, 999, "", 45, "💆", 0xFFE8F1FA, "https://images.unsplash.com/photo-1519699047748-de8e457a634e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"),
+                Product("P007", "Servis Ringan / Pengecekan", "Servis & Reparasi", 75000, 0, true, 999, "SRV01", 60, "🛠️", 0xFFEFE3DC, "https://images.unsplash.com/photo-1581092160607-ee22621dd758?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400")
             )
         }
 
         templateProducts.forEach { upsertProduct(it) }
+
+        // Seed default staff for SERVICE if empty
+        if (category == BusinessCategory.SERVICE && db.storeStaffDao().getAll().isEmpty()) {
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-1", "Dimas (Fotografer / Stylist)", "STAFF", "", "", true))
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-2", "Sarah (Editor / Terapis)", "STAFF", "", "", true))
+            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-3", "Budi (Teknisi / Operator)", "STAFF", "", "", true))
+        }
     }
 
     suspend fun upsertProduct(product: Product) = db.productDao().upsert(product.toEntity())
@@ -133,6 +144,20 @@ class DaunPOSRepository(
         val all = db.productDao().getAll()
         val max = all.mapNotNull { it.id.removePrefix("P").toIntOrNull() }.maxOrNull() ?: 0
         return "P" + (max + 1).toString().padStart(3, '0')
+    }
+
+    suspend fun findProductByBarcodeOrId(code: String): Product? =
+        db.productDao().getByBarcodeOrId(code.trim())?.toDomain()
+
+    suspend fun addStaff(name: String, role: String = "STAFF"): StoreStaff {
+        val id = "STF-${System.currentTimeMillis()}"
+        val entity = com.daunpos.app.data.local.StoreStaffEntity(id = id, name = name, role = role, pinSalt = "", pinHash = "", isActive = true)
+        db.storeStaffDao().upsert(entity)
+        return entity.toDomain()
+    }
+
+    suspend fun deleteStaff(id: String) {
+        db.storeStaffDao().deleteById(id)
     }
 
     suspend fun insertTransaction(tx: Transaction) {

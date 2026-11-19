@@ -95,4 +95,67 @@ class POSLogicTest {
         }
         assertFalse(hasDrawerCommandQris)
     }
+
+    @Test
+    fun testServiceReceiptWithStaffAndNotes() {
+        val tx = Transaction(
+            id = "#INV-FOTO-01",
+            dateTime = System.currentTimeMillis(),
+            items = listOf(
+                OrderItem(
+                    productId = "P001",
+                    name = "Sesi Foto Wisuda",
+                    price = 250000,
+                    quantity = 1,
+                    emoji = "🎓",
+                    note = "Background Navy, 4 Orang",
+                    staffName = "Dimas (Fotografer)"
+                )
+            ),
+            subtotal = 250000,
+            discount = 0,
+            tax = 0,
+            total = 250000,
+            paymentMethod = PaymentMethod.TRANSFER,
+            tableNumber = "Staf: Dimas"
+        )
+
+        val receiptText = ReceiptBuilder.buildText(tx, ReceiptSettings())
+        assertTrue(receiptText.contains("Staf  : Dimas"))
+        assertTrue(receiptText.contains("Sesi Foto Wisuda"))
+        assertTrue(receiptText.contains("Background Navy"))
+
+        val printerBytes = ThermalPrinter.buildReceiptBytes(tx, ReceiptSettings())
+        val printerString = String(printerBytes, Charsets.US_ASCII)
+        assertTrue(printerString.contains("Staf  : Dimas"))
+        assertTrue(printerString.contains("Sesi Foto Wisuda"))
+        assertTrue(printerString.contains("Background Navy"))
+    }
+
+    @Test
+    fun testRetailReceiptWithCustomerType() {
+        val tx = Transaction(
+            id = "#INV-RET-01",
+            dateTime = System.currentTimeMillis(),
+            items = listOf(
+                OrderItem(
+                    productId = "P002",
+                    name = "Kaos Polos Combed",
+                    price = 65000,
+                    quantity = 2,
+                    emoji = "👕"
+                )
+            ),
+            subtotal = 130000,
+            discount = 10000,
+            tax = 0,
+            total = 120000,
+            paymentMethod = PaymentMethod.CASH,
+            tableNumber = "Pelanggan Umum"
+        )
+
+        val receiptText = ReceiptBuilder.buildText(tx, ReceiptSettings())
+        assertTrue(receiptText.contains("Tipe  : Pelanggan Umum"))
+        assertTrue(receiptText.contains("Kaos Polos Combed"))
+    }
 }

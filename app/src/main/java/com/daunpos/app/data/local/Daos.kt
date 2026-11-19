@@ -25,6 +25,9 @@ interface ProductDao {
 
     @Query("UPDATE products SET available = :available WHERE id = :id")
     suspend fun setAvailable(id: String, available: Boolean)
+
+    @Query("SELECT * FROM products WHERE (barcodeSku = :barcode OR id = :barcode) AND available = 1 LIMIT 1")
+    suspend fun getByBarcodeOrId(barcode: String): ProductEntity?
 }
 
 @Dao
