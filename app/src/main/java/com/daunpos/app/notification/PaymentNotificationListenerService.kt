@@ -3,19 +3,16 @@ package com.daunpos.app.notification
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 
 class PaymentNotificationListenerService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        Log.i(TAG, "DaunPOS Payment Notification Listener Connected")
         PaymentNotificationBridge.setConnected(true)
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        Log.i(TAG, "DaunPOS Payment Notification Listener Disconnected")
         PaymentNotificationBridge.setConnected(false)
     }
 
@@ -23,11 +20,18 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
 
-        val notification = sbn.notification ?: return
-        val extras = notification.extras ?: return
         val packageName = sbn.packageName ?: return
 
-        // Ekstrak Title dan Text dari notifikasi sistem
+        // Privacy Whitelist: Early-return jika package bukan aplikasi perbankan/e-wallet yang dikenali.
+        // Mencegah ekstraksi extras atau pembacaan notifikasi pribadi (WhatsApp, Telegram, SMS, OTP, dll).
+        if (!BankNotificationParser.isKnownBankPackage(packageName)) {
+            return
+        }
+
+        val notification = sbn.notification ?: return
+        val extras = notification.extras ?: return
+
+        // Ekstrak Title dan Text dari notifikasi sistem perbankan
         val title = extras.getString(Notification.EXTRA_TITLE)
             ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
 
@@ -43,12 +47,8 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         )
 
         if (event != null) {
-            Log.i(TAG, "Payment detected from ${event.bankName}: Rp ${event.amount} (Sender: '${event.senderName}')")
+            // Data pembayaran diproses murni di memori tanpa mencetak logcat untuk menjaga keamanan data finansial
             PaymentNotificationBridge.postPayment(event)
         }
-    }
-
-    companion object {
-        private const val TAG = "DaunPOSListener"
     }
 }

@@ -33,7 +33,13 @@ object BankNotificationParser {
         "berhasil diterima",
         "masuk sebesar",
         "kredit",
-        "transaksi sukses: masuk"
+        "transaksi sukses: masuk",
+        "setoran masuk",
+        "telah menerima",
+        "menerima dana",
+        "pembayaran diterima",
+        "saldo masuk",
+        "top up masuk"
     )
 
     private val OUTGOING_KEYWORDS = listOf(
@@ -49,9 +55,19 @@ object BankNotificationParser {
         "pulsa berhasil",
         "pembelian",
         "tagihan anda",
+        "pembayaran merchant",
+        "pembayaran di",
         "kode otp",
         "jangan berikan kode"
     )
+
+    /**
+     * Memeriksa apakah package aplikasi terdaftar sebagai aplikasi perbankan / e-wallet resmi.
+     * Digunakan sebagai whitelist privasi sebelum membaca konten notifikasi di Service.
+     */
+    fun isKnownBankPackage(packageName: String): Boolean {
+        return KNOWN_BANK_PACKAGES.containsKey(packageName)
+    }
 
     /**
      * Mem-parsing notifikasi status bar Android.
@@ -75,13 +91,12 @@ object BankNotificationParser {
         val hasOutgoing = OUTGOING_KEYWORDS.any { lowerCombined.contains(it) }
         val hasIncoming = INCOMING_KEYWORDS.any { lowerCombined.contains(it) }
 
-        if (hasOutgoing && !hasIncoming) {
+        if (hasOutgoing) {
             return null
         }
 
-        // Must have at least one incoming payment indicator or come from recognized bank app
-        val isRecognizedPackage = KNOWN_BANK_PACKAGES.containsKey(packageName)
-        if (!hasIncoming && !isRecognizedPackage) {
+        // Wajibkan sinyal masuk eksplisit (tidak boleh fallback package semata)
+        if (!hasIncoming) {
             return null
         }
 

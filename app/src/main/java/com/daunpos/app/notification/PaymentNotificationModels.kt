@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class BankNotificationEvent(
+    val id: String = java.util.UUID.randomUUID().toString(),
     val sourcePackage: String,
     val bankName: String,
     val amount: Int,
@@ -38,11 +39,26 @@ object PaymentNotificationBridge {
     private val _recentNotifications = MutableStateFlow<List<BankNotificationEvent>>(emptyList())
     val recentNotifications: StateFlow<List<BankNotificationEvent>> = _recentNotifications.asStateFlow()
 
+    // Tracking ID notifikasi yang sudah pernah dikonsumsi untuk melunasi invoice (mencegah reuse / double payment)
+    private val consumedNotificationIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     fun postPayment(event: BankNotificationEvent) {
         _incomingPayments.tryEmit(event)
         val current = _recentNotifications.value.toMutableList()
         current.add(0, event)
         _recentNotifications.value = current.take(10)
+    }
+
+    fun markConsumed(eventId: String) {
+        consumedNotificationIds.add(eventId)
+    }
+
+    fun isConsumed(eventId: String): Boolean {
+        return consumedNotificationIds.contains(eventId)
+    }
+
+    fun clearConsumed() {
+        consumedNotificationIds.clear()
     }
 
     fun setConnected(connected: Boolean) {

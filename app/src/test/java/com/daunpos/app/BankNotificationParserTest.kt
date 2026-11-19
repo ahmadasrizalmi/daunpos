@@ -151,4 +151,60 @@ class BankNotificationParserTest {
         assertEquals(75000, BankNotificationParser.extractAmount("IDR 75000 berhasil"))
         assertEquals(20000, BankNotificationParser.extractAmount("sebesar Rp 20.000.00 ke dompet"))
     }
+
+    @Test
+    fun testRejectBankNotificationWithoutIncomingKeyword() {
+        // Notifikasi dari bank dikenal tetapi tidak memiliki kata kunci masuk eksplisit harus ditolak
+        val debitWithoutKeyword = BankNotificationParser.parseNotification(
+            packageName = "com.bca",
+            title = "BCA Info",
+            text = "Pembayaran merchant di INDOMARET Rp 30.000"
+        )
+        assertNull("Debit/pembelian tanpa sinyal masuk harus ditolak", debitWithoutKeyword)
+
+        val saldoInfo = BankNotificationParser.parseNotification(
+            packageName = "id.bmri.livin",
+            title = "Info Saldo",
+            text = "Saldo rekening Anda saat ini Rp 5.000.000"
+        )
+        assertNull("Info saldo tanpa sinyal masuk harus ditolak", saldoInfo)
+
+        val promoInfo = BankNotificationParser.parseNotification(
+            packageName = "com.gojek.gobiz",
+            title = "Promo Spesial",
+            text = "Dapatkan cashback 50% hingga Rp 20.000 untuk transaksi hari ini"
+        )
+        assertNull("Promo/marketing bank harus ditolak", promoInfo)
+    }
+
+    @Test
+    fun testKnownBankPackagePrivacyWhitelist() {
+        // Whitelist privasi harus hanya mengizinkan package perbankan & e-wallet
+        assertTrue(BankNotificationParser.isKnownBankPackage("com.bca"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("id.bmri.livin"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("id.co.bri.brimo"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("id.co.bni.newmobile"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("com.gojek.gobiz"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("id.dana"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("ovo.id"))
+        assertTrue(BankNotificationParser.isKnownBankPackage("id.co.seabank.android"))
+
+        // Aplikasi non-finansial tidak boleh diizinkan (early-return)
+        org.junit.Assert.assertFalse(BankNotificationParser.isKnownBankPackage("com.whatsapp"))
+        org.junit.Assert.assertFalse(BankNotificationParser.isKnownBankPackage("org.telegram.messenger"))
+        org.junit.Assert.assertFalse(BankNotificationParser.isKnownBankPackage("com.google.android.apps.messaging"))
+        org.junit.Assert.assertFalse(BankNotificationParser.isKnownBankPackage("com.instagram.android"))
+    }
+
+    @Test
+    fun testNotificationConsumptionTracking() {
+        val event = com.daunpos.app.notification.BankNotificationEvent(
+            sourcePackage = "com.bca",
+            bankName = "BCA Mobile",
+            amount = 50000
+        )
+        org.junit.Assert.assertFalse("Notifikasi baru belum boleh dikonsumsi", com.daunpos.app.notification.PaymentNotificationBridge.isConsumed(event.id))
+        com.daunpos.app.notification.PaymentNotificationBridge.markConsumed(event.id)
+        assertTrue("Notifikasi yang sudah dipakai harus ditandai dikonsumsi", com.daunpos.app.notification.PaymentNotificationBridge.isConsumed(event.id))
+    }
 }

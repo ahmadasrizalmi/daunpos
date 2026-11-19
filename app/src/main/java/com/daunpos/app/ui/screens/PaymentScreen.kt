@@ -118,6 +118,8 @@ fun PaymentScreen(
     var qrisCountdown by remember { mutableStateOf(300) }
 
     // Notification listener status & verified feedback
+    val invoiceOpenedTimestamp = remember { System.currentTimeMillis() }
+    var pendingVerifiedEvent by remember { mutableStateOf<BankNotificationEvent?>(null) }
     var isNotificationAccessGranted by remember {
         mutableStateOf(PaymentNotificationBridge.isNotificationAccessGranted(context))
     }
@@ -152,16 +154,29 @@ fun PaymentScreen(
         onSuccess(id)
     }
 
-    // Auto-verifikasi pembayaran via Android Notification Listener Service
+    fun confirmVerifiedPayment() {
+        val event = pendingVerifiedEvent ?: return
+        PaymentNotificationBridge.markConsumed(event.id)
+        qrisChecking = false
+        qrisPaid = true
+        submitCheckout()
+    }
+
+    fun dismissVerifiedPayment() {
+        pendingVerifiedEvent = null
+        autoVerifiedMessage = null
+    }
+
+    // Deteksi pembayaran via Android Notification Listener Service
+    // Dilindungi: (a) jendela waktu aktif, (b) penandaan konsumsi unik notifikasi, dan (c) konfirmasi kasir
     LaunchedEffect(method, total) {
         if (method == PaymentMethod.QRIS || method == PaymentMethod.TRANSFER) {
             PaymentNotificationBridge.incomingPayments.collect { event ->
-                if (event.amount == total && !qrisPaid && !isSubmitting) {
-                    qrisChecking = true
-                    qrisPaid = true
-                    autoVerifiedMessage = "✓ Notifikasi ${event.bankName}: Rp ${formatRupiah(event.amount)} diterima!"
-                    delay(1200)
-                    submitCheckout()
+                val isRecent = event.timestamp >= (invoiceOpenedTimestamp - 10000L)
+                val isNotConsumed = !PaymentNotificationBridge.isConsumed(event.id)
+                if (event.amount == total && isRecent && isNotConsumed && !qrisPaid && !isSubmitting) {
+                    pendingVerifiedEvent = event
+                    autoVerifiedMessage = "✓ Notifikasi ${event.bankName}: Rp ${formatRupiah(event.amount)} terdeteksi!"
                 }
             }
         }
@@ -364,6 +379,9 @@ fun PaymentScreen(
                             onOpenNotificationSettings = {
                                 PaymentNotificationBridge.openNotificationSettings(context)
                             },
+                            pendingVerifiedEvent = pendingVerifiedEvent,
+                            onConfirmVerifiedPayment = { confirmVerifiedPayment() },
+                            onDismissVerifiedPayment = { dismissVerifiedPayment() },
                             autoVerifiedMessage = autoVerifiedMessage,
                             onSimulateBankNotification = {
                                 PaymentNotificationBridge.postPayment(
@@ -452,6 +470,9 @@ fun PaymentScreen(
                     onOpenNotificationSettings = {
                         PaymentNotificationBridge.openNotificationSettings(context)
                     },
+                    pendingVerifiedEvent = pendingVerifiedEvent,
+                    onConfirmVerifiedPayment = { confirmVerifiedPayment() },
+                    onDismissVerifiedPayment = { dismissVerifiedPayment() },
                     autoVerifiedMessage = autoVerifiedMessage,
                     onSimulateBankNotification = {
                         PaymentNotificationBridge.postPayment(
@@ -492,6 +513,9 @@ private fun PaymentOptionsContent(
     qrisPaid: Boolean,
     isNotificationAccessGranted: Boolean,
     onOpenNotificationSettings: () -> Unit,
+    pendingVerifiedEvent: BankNotificationEvent?,
+    onConfirmVerifiedPayment: () -> Unit,
+    onDismissVerifiedPayment: () -> Unit,
     autoVerifiedMessage: String?,
     onSimulateBankNotification: () -> Unit,
     onSimulateQrisPaid: () -> Unit,
@@ -805,8 +829,14 @@ private fun PaymentOptionsContent(
                                 }
                             }
 
-                            // Feedback Banner Saat Berhasil Diverifikasi via Notifikasi
-                            if (autoVerifiedMessage != null) {
+                            // Feedback Banner / Konfirmasi Pembayaran Terdeteksi via Notifikasi
+                            if (pendingVerifiedEvent != null) {
+                                PendingNotificationConfirmationCard(
+                                    event = pendingVerifiedEvent,
+                                    onConfirm = onConfirmVerifiedPayment,
+                                    onDismiss = onDismissVerifiedPayment
+                                )
+                            } else if (autoVerifiedMessage != null) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -936,7 +966,14 @@ private fun PaymentOptionsContent(
                             }
                         }
 
-                        if (autoVerifiedMessage != null) {
+                        // Feedback Banner / Konfirmasi Pembayaran Terdeteksi via Notifikasi
+                        if (pendingVerifiedEvent != null) {
+                            PendingNotificationConfirmationCard(
+                                event = pendingVerifiedEvent,
+                                onConfirm = onConfirmVerifiedPayment,
+                                onDismiss = onDismissVerifiedPayment
+                            )
+                        } else if (autoVerifiedMessage != null) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1003,6 +1040,102 @@ private fun PaymentOptionsContent(
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun PendingNotificationConfirmationCard(
+    event: BankNotificationEvent,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFE8F5E9))
+            .border(2.dp, Green, RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Green),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Notifikasi Pembayaran Cocok!",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenDeep
+                    )
+                    Text(
+                        "Uang masuk terdeteksi via status bar. Konfirmasi kasir untuk menyelesaikan:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = InkSoft
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+                    .border(1.dp, Line, RoundedCornerShape(10.dp))
+                    .padding(10.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Bank / E-Wallet:", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        Text(event.bankName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Ink)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Nominal Diterima:", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        Text(formatRupiah(event.amount), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = GreenDeep)
+                    }
+                    if (event.senderName.isNotBlank()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Nama Pengirim:", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                            Text(event.senderName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Ink)
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(0.38f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                ) {
+                    Text("Abaikan", color = InkSoft, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(0.62f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Konfirmasi Bayar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
         }
     }
 }
