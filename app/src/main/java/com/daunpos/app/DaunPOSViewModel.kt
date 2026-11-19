@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.daunpos.app.data.CartItem
+import com.daunpos.app.data.BusinessCategory
+import com.daunpos.app.data.StoreProfile
 import com.daunpos.app.data.OrderItem
 import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.PrinterSettings
@@ -40,6 +42,36 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     val receiptSettings: StateFlow<ReceiptSettings> = repository.receiptSettings
     val staticQris: StateFlow<String> = repository.staticQris
+    val isOnboardingCompleted: StateFlow<Boolean> = repository.isOnboardingCompleted
+    val storeProfile: StateFlow<StoreProfile> = repository.storeProfile
+
+    fun completeOnboarding(
+        name: String,
+        category: BusinessCategory,
+        address: String,
+        phone: String,
+        staticQris: String,
+        isMultiUser: Boolean,
+        ownerPin: String,
+        cashierPin: String? = null,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            repository.completeOnboarding(
+                name = name,
+                category = category,
+                address = address,
+                phone = phone,
+                staticQris = staticQris,
+                isMultiUser = isMultiUser,
+                ownerPin = ownerPin,
+                cashierPin = cashierPin
+            )
+            _currentUser.value = User("owner", UserRole.OWNER)
+            _cashier.value = "Pemilik"
+            onDone()
+        }
+    }
 
     val printerManager = BluetoothPrinterManager(application)
     val bluetoothState: StateFlow<BluetoothPrinterState> = printerManager.state

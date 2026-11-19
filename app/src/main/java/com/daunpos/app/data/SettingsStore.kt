@@ -23,6 +23,86 @@ class SettingsStore(context: Context) {
     )
     val staticQris: StateFlow<String> = _staticQris.asStateFlow()
 
+    private val _isOnboardingCompleted = MutableStateFlow(
+        prefs.getBoolean("onboarding_completed", false)
+    )
+    val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    private val _storeProfile = MutableStateFlow(loadStoreProfile())
+    val storeProfile: StateFlow<StoreProfile> = _storeProfile.asStateFlow()
+
+    fun completeOnboarding(
+        name: String,
+        category: BusinessCategory,
+        address: String,
+        phone: String,
+        qris: String,
+        isMultiUser: Boolean
+    ) {
+        val cleanQris = qris.trim().replace("\\s+".toRegex(), "").ifBlank { _staticQris.value }
+        val tax = category.defaultTax
+
+        val newProfile = StoreProfile(
+            storeName = name,
+            businessCategory = category,
+            address = address,
+            phoneNumber = phone,
+            taxPercentage = tax,
+            staticQris = cleanQris,
+            isMultiUserEnabled = isMultiUser,
+            isOnboardingCompleted = true
+        )
+
+        _storeProfile.value = newProfile
+        _isOnboardingCompleted.value = true
+        _staticQris.value = cleanQris
+
+        prefs.edit()
+            .putBoolean("onboarding_completed", true)
+            .putString("store_name", name)
+            .putString("business_category", category.id)
+            .putString("store_address", address)
+            .putString("store_phone", phone)
+            .putString("static_qris", cleanQris)
+            .putBoolean("is_multi_user", isMultiUser)
+            .apply()
+
+        // Sync store name and address to receipt headers
+        updateReceipt(
+            _receipt.value.copy(
+                headerLines = listOf(name, address, phone),
+                taxPercentage = tax
+            )
+        )
+    }
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+        prefs.edit().putBoolean("onboarding_completed", completed).apply()
+    }
+
+    private fun loadStoreProfile(): StoreProfile {
+        val name = prefs.getString("store_name", "DaunPOS") ?: "DaunPOS"
+        val categoryStr = prefs.getString("business_category", "FNB") ?: "FNB"
+        val category = BusinessCategory.fromId(categoryStr)
+        val address = prefs.getString("store_address", "Jl. Daun Hijau No. 8, Bandung") ?: "Jl. Daun Hijau No. 8, Bandung"
+        val phone = prefs.getString("store_phone", "0812-3456-7890") ?: "0812-3456-7890"
+        val qris = prefs.getString("static_qris", null) ?: QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS
+        val isMulti = prefs.getBoolean("is_multi_user", false)
+        val completed = prefs.getBoolean("onboarding_completed", false)
+
+        return StoreProfile(
+            storeName = name,
+            businessCategory = category,
+            address = address,
+            phoneNumber = phone,
+            taxPercentage = category.defaultTax,
+            staticQris = qris,
+            isMultiUserEnabled = isMulti,
+            isOnboardingCompleted = completed
+        )
+    }
+
     fun updateStaticQris(raw: String) {
         val clean = raw.trim().replace("\\s+".toRegex(), "")
         _staticQris.value = clean

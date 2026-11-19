@@ -68,3 +68,30 @@ interface ShiftDao {
     @Upsert
     suspend fun upsert(shift: ShiftEntity)
 }
+
+@Dao
+interface StoreProfileDao {
+    @Query("SELECT * FROM store_profile WHERE id = 1 LIMIT 1")
+    fun observeProfile(): Flow<StoreProfileEntity?>
+
+    @Query("SELECT * FROM store_profile WHERE id = 1 LIMIT 1")
+    suspend fun getProfile(): StoreProfileEntity?
+
+    @Upsert
+    suspend fun upsert(profile: StoreProfileEntity)
+}
+
+@Dao
+interface StoreStaffDao {
+    @Query("SELECT * FROM store_staff WHERE isActive = 1 ORDER BY name")
+    fun observeAll(): Flow<List<StoreStaffEntity>>
+
+    @Query("SELECT * FROM store_staff WHERE isActive = 1 ORDER BY name")
+    suspend fun getAll(): List<StoreStaffEntity>
+
+    @Upsert
+    suspend fun upsert(staff: StoreStaffEntity)
+
+    @Query("DELETE FROM store_staff WHERE id = :id")
+    suspend fun deleteById(id: String)
+}

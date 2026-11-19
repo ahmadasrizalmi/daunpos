@@ -11,8 +11,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Database(
-    entities = [ProductEntity::class, TransactionEntity::class, UserEntity::class, ShiftEntity::class],
-    version = 2,
+    entities = [
+        ProductEntity::class,
+        TransactionEntity::class,
+        UserEntity::class,
+        ShiftEntity::class,
+        StoreProfileEntity::class,
+        StoreStaffEntity::class
+    ],
+    version = 3,
     exportSchema = false
 )
 abstract class DaunPOSDatabase : RoomDatabase() {
@@ -21,6 +28,8 @@ abstract class DaunPOSDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun userDao(): UserDao
     abstract fun shiftDao(): ShiftDao
+    abstract fun storeProfileDao(): StoreProfileDao
+    abstract fun storeStaffDao(): StoreStaffDao
 
     companion object {
         fun build(context: Context): DaunPOSDatabase =
@@ -32,9 +41,17 @@ abstract class DaunPOSDatabase : RoomDatabase() {
 
     private object SeedCallback : Callback() {
         override fun onCreate(db: SupportSQLiteDatabase) {
+            seedStoreProfile(db)
             seedProducts(db)
             seedUsers(db)
             seedTransactions(db)
+        }
+
+        private fun seedStoreProfile(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO store_profile (id, storeName, businessType, address, phoneNumber, logoUri, taxPercentage, staticQrisRaw, merchantNmid, isMultiUserEnabled, isAutoVerificationEnabled, isOnboardingCompleted) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>("DaunPOS Coffee & Eatery", "FNB", "Jl. Daun Hijau No. 8, Bandung", "0812-3456-7890", null, 10, "", "", 0, 1, 0)
+            )
         }
 
         private fun seedProducts(db: SupportSQLiteDatabase) {
@@ -94,9 +111,23 @@ abstract class DaunPOSDatabase : RoomDatabase() {
                 )
             )
             products.forEach { p ->
+                val fullParams = arrayOf<Any?>(
+                    p[0], // id
+                    p[1], // name
+                    p[2], // category
+                    p[3], // price
+                    0,    // costPrice
+                    p[4], // available
+                    p[5], // stock
+                    "",   // barcodeSku
+                    0,    // durationMinutes
+                    p[6], // emoji
+                    p[7], // colorHex
+                    p[8]  // imageUrl
+                )
                 db.execSQL(
-                    "INSERT OR IGNORE INTO products (id, name, category, price, available, stock, emoji, colorHex, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    p
+                    "INSERT OR IGNORE INTO products (id, name, category, price, costPrice, available, stock, barcodeSku, durationMinutes, emoji, colorHex, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    fullParams
                 )
             }
         }

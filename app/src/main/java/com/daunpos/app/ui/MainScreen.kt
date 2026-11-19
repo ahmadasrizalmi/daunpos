@@ -243,7 +243,8 @@ fun MainScreen(
                 2 -> MenuManagementScreen(vm = vm)
                 3 -> PrinterSettingsScreen(
                     vm = vm,
-                    onOpenReceiptCustomization = { onNavigate("receipt") }
+                    onOpenReceiptCustomization = { onNavigate("receipt") },
+                    onEditStoreProfile = { onNavigate("onboarding_category") }
                 )
             }
         }

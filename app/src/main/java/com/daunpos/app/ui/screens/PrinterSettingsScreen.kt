@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
@@ -90,7 +91,8 @@ private val connectionTypes = listOf("Bluetooth", "USB", "LAN / Wi-Fi")
 @Composable
 fun PrinterSettingsScreen(
     vm: DaunPOSViewModel,
-    onOpenReceiptCustomization: () -> Unit
+    onOpenReceiptCustomization: () -> Unit,
+    onEditStoreProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
@@ -189,6 +191,8 @@ fun PrinterSettingsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                StoreProfileSummaryCard(vm = vm, onEditProfile = onEditStoreProfile)
+
                 QrisSettingsCard(vm = vm)
 
                 PaperAndPreferencesCard(
@@ -233,6 +237,10 @@ fun PrinterSettingsScreen(
         ) {
             item {
                 Text("Printer & Pengaturan", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+            }
+
+            item {
+                StoreProfileSummaryCard(vm = vm, onEditProfile = onEditStoreProfile)
             }
 
             item {
@@ -804,6 +812,101 @@ private fun QrisSettingsCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreProfileSummaryCard(
+    vm: DaunPOSViewModel,
+    onEditProfile: () -> Unit
+) {
+    val profile by vm.storeProfile.collectAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .padding(18.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(GreenSoft),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Storefront,
+                            contentDescription = null,
+                            tint = GreenDeep,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = profile.storeName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Ink
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "${profile.address} · ${profile.phoneNumber}",
+                            fontSize = 11.sp,
+                            color = InkSoft,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(GreenDeep)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = profile.businessCategory.title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            OutlinedButton(
+                onClick = onEditProfile,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Green)
+            ) {
+                Text(
+                    text = "Ubah Profil Toko & Kategori Usaha",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = GreenDeep
+                )
             }
         }
     }

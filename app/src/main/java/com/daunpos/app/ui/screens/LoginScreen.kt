@@ -61,7 +61,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     vm: DaunPOSViewModel,
-    onLogin: () -> Unit
+    onLogin: () -> Unit,
+    onSetupNewStore: () -> Unit = {}
 ) {
     val config = LocalConfiguration.current
     val isTablet = config.smallestScreenWidthDp >= 600
@@ -188,7 +189,8 @@ fun LoginScreen(
                         role = if (role == UserRole.KASIR) UserRole.OWNER else UserRole.KASIR
                         pin = ""
                         error = null
-                    }
+                    },
+                    onSetupNewStore = onSetupNewStore
                 )
             }
         }
@@ -212,7 +214,8 @@ fun LoginScreen(
                     role = if (role == UserRole.KASIR) UserRole.OWNER else UserRole.KASIR
                     pin = ""
                     error = null
-                }
+                },
+                onSetupNewStore = onSetupNewStore
             )
         }
     }
@@ -250,7 +253,8 @@ private fun PinKeypadContent(
     loading: Boolean,
     onPressDigit: (String) -> Unit,
     onDelete: () -> Unit,
-    onToggleRole: () -> Unit
+    onToggleRole: () -> Unit,
+    onSetupNewStore: () -> Unit
 ) {
     Column(
         modifier = Modifier.padding(horizontal = 24.dp),
@@ -386,6 +390,19 @@ private fun PinKeypadContent(
             text = if (role == UserRole.KASIR) "PIN kasir: 1234" else "PIN pemilik: 0000",
             style = MaterialTheme.typography.labelSmall,
             color = InkSoft
+        )
+
+        Spacer(Modifier.height(14.dp))
+
+        Text(
+            text = "Setup Ulang Toko / Ganti Jenis Usaha",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = GreenDeep,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onSetupNewStore() }
+                .padding(vertical = 6.dp, horizontal = 12.dp)
         )
     }
 }

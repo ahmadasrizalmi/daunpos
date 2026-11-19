@@ -9,11 +9,40 @@ data class ProductEntity(
     val name: String,
     val category: String,
     val price: Int,
+    val costPrice: Int = 0,
     val available: Boolean,
     val stock: Int = 50,
+    val barcodeSku: String = "",
+    val durationMinutes: Int = 0,
     val emoji: String,
     val colorHex: Long,
     val imageUrl: String? = null
+)
+
+@Entity(tableName = "store_profile")
+data class StoreProfileEntity(
+    @PrimaryKey val id: Int = 1,
+    val storeName: String,
+    val businessType: String, // "FNB", "RETAIL", "SERVICE"
+    val address: String,
+    val phoneNumber: String,
+    val logoUri: String? = null,
+    val taxPercentage: Int = 10,
+    val staticQrisRaw: String = "",
+    val merchantNmid: String = "",
+    val isMultiUserEnabled: Boolean = false,
+    val isAutoVerificationEnabled: Boolean = true,
+    val isOnboardingCompleted: Boolean = false
+)
+
+@Entity(tableName = "store_staff")
+data class StoreStaffEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val role: String, // "OWNER", "CASHIER", "STAFF"
+    val pinSalt: String,
+    val pinHash: String,
+    val isActive: Boolean = true
 )
 
 @Entity(tableName = "transactions")

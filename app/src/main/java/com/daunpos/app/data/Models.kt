@@ -3,13 +3,66 @@ package com.daunpos.app.data
 import java.text.NumberFormat
 import java.util.Locale
 
+enum class BusinessCategory(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val features: List<String>,
+    val defaultTax: Int
+) {
+    FNB(
+        id = "FNB",
+        title = "Kuliner & F&B",
+        subtitle = "Resto, Kafe, Angkringan, Bakery",
+        description = "Pengaturan nomor meja, pesanan dine-in & take away, cetak struk dapur, dan split bill.",
+        features = listOf("Manajemen Meja", "Dine-In / Take Away", "Struk Dapur", "Split Bill"),
+        defaultTax = 10
+    ),
+    RETAIL(
+        id = "RETAIL",
+        title = "Retail & Toko",
+        subtitle = "Kelontong, Butik, Minimarket, Petshop",
+        description = "Barcode scanner cepat, manajemen inventaris stok & SKU realtime, varian harga, dan cetak label rak.",
+        features = listOf("Barcode Scanner Cepat", "Stok & SKU Realtime", "Grosir / Varian", "Cetak Label Rak"),
+        defaultTax = 0
+    ),
+    SERVICE(
+        id = "SERVICE",
+        title = "Jasa & Layanan",
+        subtitle = "Barbershop, Salon, Laundry, Bengkel",
+        description = "Pilihan staf/kapster bertugas, durasi dan estimasi selesai pengerjaan, serta pencatatan komisi tim.",
+        features = listOf("Pilihan Staf / Kapster", "Durasi Pengerjaan", "Pencatatan Komisi", "Catatan Pelanggan"),
+        defaultTax = 0
+    );
+
+    companion object {
+        fun fromId(id: String): BusinessCategory =
+            entries.find { it.id.equals(id, ignoreCase = true) } ?: FNB
+    }
+}
+
+data class StoreProfile(
+    val storeName: String = "DaunPOS",
+    val businessCategory: BusinessCategory = BusinessCategory.FNB,
+    val address: String = "Jl. Daun Hijau No. 8",
+    val phoneNumber: String = "0812-3456-7890",
+    val taxPercentage: Int = 10,
+    val staticQris: String = "",
+    val isMultiUserEnabled: Boolean = false,
+    val isOnboardingCompleted: Boolean = false
+)
+
 data class Product(
     val id: String,
     val name: String,
     val category: String,
     val price: Int,
+    val costPrice: Int = 0,
     val available: Boolean = true,
     val stock: Int = 50,
+    val barcodeSku: String = "",
+    val durationMinutes: Int = 0,
     val emoji: String = "🍽️",
     val colorHex: Long = 0xFFE7F4EA,
     val imageUrl: String? = null
