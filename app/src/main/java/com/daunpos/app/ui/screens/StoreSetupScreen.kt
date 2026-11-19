@@ -115,8 +115,14 @@ fun StoreSetupScreen(
         if (uri != null) {
             val decoded = QrisConverter.decodeQrFromUri(context, uri)
             if (!decoded.isNullOrBlank()) {
+                val validation = QrisConverter.validateQris(decoded)
                 staticQris = decoded.trim()
-                scanFeedback = "✅ QRIS Berhasil Terbaca dari Foto!"
+                if (validation.isValid) {
+                    scanFeedback = "✅ Valid: ${validation.merchantName} (${validation.city})"
+                } else {
+                    val err = validation.errors.firstOrNull() ?: "Format QRIS perlu diverifikasi"
+                    scanFeedback = "⚠️ QRIS Terbaca: $err"
+                }
             } else {
                 scanFeedback = "⚠️ QR Code tidak terdeteksi pada gambar. Pastikan foto QRIS jelas."
             }

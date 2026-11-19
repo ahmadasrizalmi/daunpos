@@ -628,10 +628,15 @@ private fun QrisSettingsCard(
         if (uri != null) {
             val decoded = QrisConverter.decodeQrFromUri(context, uri)
             if (!decoded.isNullOrBlank()) {
+                val validation = QrisConverter.validateQris(decoded)
                 input = decoded.trim()
                 vm.updateStaticQris(decoded.trim())
-                val info = QrisConverter.parseMerchantInfo(decoded)
-                saveMessage = "✅ QRIS Berhasil Terbaca & Tersimpan! (${info.merchantName})"
+                if (validation.isValid) {
+                    saveMessage = "✅ QRIS Valid & Tersimpan! (${validation.merchantName} - ${validation.city})"
+                } else {
+                    val err = validation.errors.firstOrNull() ?: "Format QRIS perlu diverifikasi"
+                    saveMessage = "⚠️ QRIS Tersimpan: $err"
+                }
             } else {
                 saveMessage = "⚠️ QR Code tidak terdeteksi pada gambar. Pastikan foto jelas dan berlogo QRIS."
             }

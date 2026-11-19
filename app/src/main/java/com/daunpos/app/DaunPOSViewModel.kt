@@ -347,7 +347,8 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun generateDynamicQris(amount: Int): String {
-        return QrisConverter.convertStaticToDynamic(staticQris.value, amount)
+        val storeCity = storeProfile.value.address.split(",").lastOrNull()?.trim().orEmpty().ifBlank { "INDONESIA" }
+        return QrisConverter.convertStaticToDynamic(staticQris.value, amount, storeCity)
     }
 
     fun printQrisBill(amount: Int) {

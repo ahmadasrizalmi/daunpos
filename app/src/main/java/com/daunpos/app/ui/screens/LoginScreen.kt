@@ -3,6 +3,8 @@ package com.daunpos.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -176,7 +178,8 @@ fun LoginScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(40.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 16.dp, horizontal = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 PinKeypadContent(
@@ -184,6 +187,7 @@ fun LoginScreen(
                     role = role,
                     error = error,
                     loading = loading,
+                    isTablet = true,
                     onPressDigit = { pressDigit(it) },
                     onDelete = { pin = pin.dropLast(1); error = null },
                     onToggleRole = {
@@ -252,20 +256,27 @@ private fun PinKeypadContent(
     role: UserRole,
     error: String?,
     loading: Boolean,
+    isTablet: Boolean = false,
     onPressDigit: (String) -> Unit,
     onDelete: () -> Unit,
     onToggleRole: () -> Unit,
     onSetupNewStore: () -> Unit
 ) {
+    val iconSize = if (isTablet) 52.dp else 76.dp
+    val keySize = if (isTablet) 54.dp else 64.dp
+    val spacingV = if (isTablet) 8.dp else 12.dp
+    val spacerTop = if (isTablet) 10.dp else 16.dp
+    val spacerPin = if (isTablet) 14.dp else 24.dp
+
     Column(
-        modifier = Modifier.padding(horizontal = 24.dp),
+        modifier = Modifier.padding(horizontal = if (isTablet) 12.dp else 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Box(
             modifier = Modifier
-                .size(76.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .size(iconSize)
+                .clip(RoundedCornerShape(if (isTablet) 16.dp else 24.dp))
                 .background(Green),
             contentAlignment = Alignment.Center
         ) {
@@ -273,28 +284,28 @@ private fun PinKeypadContent(
                 imageVector = Icons.Filled.Storefront,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(if (isTablet) 28.dp else 38.dp)
             )
         }
 
-        Spacer(Modifier.height(16.dp))
-        Text("DaunPOS", style = MaterialTheme.typography.headlineMedium, color = Ink)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacerTop))
+        Text("DaunPOS", style = if (isTablet) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium, color = Ink)
+        Spacer(Modifier.height(2.dp))
         Text(
             text = if (role == UserRole.OWNER) "Masuk sebagai Pemilik" else "Masuk sebagai Kasir",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = InkSoft,
             textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(spacerPin))
 
         // PIN dots
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             repeat(4) { i ->
                 Box(
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
                         .then(
                             if (i < pin.length) Modifier.background(GreenDeep)
@@ -304,9 +315,9 @@ private fun PinKeypadContent(
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Green)
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Green)
         } else {
             Text(
                 text = error ?: " ",
@@ -315,10 +326,10 @@ private fun PinKeypadContent(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (isTablet) 12.dp else 24.dp))
 
         // Keypad
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacingV)) {
             listOf(
                 listOf("1", "2", "3"),
                 listOf("4", "5", "6"),
@@ -326,16 +337,16 @@ private fun PinKeypadContent(
                 listOf("", "0", "del")
             ).forEach { row ->
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (isTablet) 16.dp else 20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     row.forEach { key ->
                         when {
-                            key.isEmpty() -> Spacer(Modifier.size(64.dp))
+                            key.isEmpty() -> Spacer(Modifier.size(keySize))
                             key == "del" -> {
                                 Box(
                                     modifier = Modifier
-                                        .size(64.dp)
+                                        .size(keySize)
                                         .clip(CircleShape)
                                         .clickable { onDelete() },
                                     contentAlignment = Alignment.Center
@@ -344,21 +355,21 @@ private fun PinKeypadContent(
                                         Icons.Filled.Delete,
                                         contentDescription = "Hapus",
                                         tint = InkSoft,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
                             else -> {
                                 Box(
                                     modifier = Modifier
-                                        .size(64.dp)
+                                        .size(keySize)
                                         .clip(CircleShape)
                                         .background(Color.White)
                                         .border(1.dp, Line, CircleShape)
                                         .clickable { onPressDigit(key) },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(key, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Ink)
+                                    Text(key, fontSize = if (isTablet) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = Ink)
                                 }
                             }
                         }
@@ -367,7 +378,7 @@ private fun PinKeypadContent(
             }
         }
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(if (isTablet) 12.dp else 22.dp))
 
         // Role toggle
         Box(
@@ -375,7 +386,7 @@ private fun PinKeypadContent(
                 .clip(RoundedCornerShape(50))
                 .background(GreenSoft)
                 .clickable { onToggleRole() }
-                .padding(horizontal = 18.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
                 if (role == UserRole.KASIR) "Masuk sebagai Pemilik" else "Masuk sebagai Kasir",
