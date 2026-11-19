@@ -1,6 +1,7 @@
 package com.daunpos.app.data
 
 import android.content.Context
+import com.daunpos.app.data.qris.QrisConverter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,17 @@ class SettingsStore(context: Context) {
 
     private val _printer = MutableStateFlow(loadPrinter())
     val printer: StateFlow<PrinterSettings> = _printer.asStateFlow()
+
+    private val _staticQris = MutableStateFlow(
+        prefs.getString("static_qris", null) ?: QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS
+    )
+    val staticQris: StateFlow<String> = _staticQris.asStateFlow()
+
+    fun updateStaticQris(raw: String) {
+        val clean = raw.trim().replace("\\s+".toRegex(), "")
+        _staticQris.value = clean
+        prefs.edit().putString("static_qris", clean).apply()
+    }
 
     fun updateReceipt(settings: ReceiptSettings) {
         _receipt.value = settings

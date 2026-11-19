@@ -1,5 +1,6 @@
 package com.daunpos.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PointOfSale
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.Button
@@ -34,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -48,8 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.data.qris.QrisConverter
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.Green
@@ -298,6 +303,7 @@ fun PaymentScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         PaymentOptionsContent(
+                            vm = vm,
                             method = method,
                             onSelectMethod = { method = it },
                             total = total,
@@ -368,6 +374,7 @@ fun PaymentScreen(
                 }
 
                 PaymentOptionsContent(
+                    vm = vm,
                     method = method,
                     onSelectMethod = { method = it },
                     total = total,
@@ -392,6 +399,7 @@ fun PaymentScreen(
 
 @Composable
 private fun PaymentOptionsContent(
+    vm: DaunPOSViewModel,
     method: PaymentMethod,
     onSelectMethod: (PaymentMethod) -> Unit,
     total: Int,
@@ -404,6 +412,9 @@ private fun PaymentOptionsContent(
     onSimulateQrisPaid: () -> Unit,
     onSubmit: () -> Unit
 ) {
+    val bluetooth by vm.bluetoothState.collectAsState()
+    val staticQris by vm.staticQris.collectAsState()
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
 
@@ -544,60 +555,130 @@ private fun PaymentOptionsContent(
             }
 
             PaymentMethod.QRIS -> {
+                // Generate Real Dynamic QRIS Payload & Real Bitmap
+                val dynamicPayload = remember(staticQris, total) {
+                    vm.generateDynamicQris(total)
+                }
+                val merchantInfo = remember(dynamicPayload) {
+                    QrisConverter.parseMerchantInfo(dynamicPayload)
+                }
+                val qrBitmap = remember(dynamicPayload) {
+                    runCatching { QrisConverter.generateQrBitmap(dynamicPayload, 512) }.getOrNull()
+                }
+
+                var qrisPrintedMessage by remember { mutableStateOf<String?>(null) }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFFFBFDFB))
-                        .border(1.dp, Line, RoundedCornerShape(18.dp))
-                        .padding(20.dp),
+                        .border(1.5.dp, GreenSoft, RoundedCornerShape(20.dp))
+                        .padding(18.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("QRIS Dinamis — DaunPOS", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Batas waktu: ${qrisCountdown / 60}:${(qrisCountdown % 60).toString().padStart(2, '0')}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        Text(merchantInfo.merchantName, style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${merchantInfo.city} · NMID: ${merchantInfo.nmid.ifBlank { "ID1020021950262" }}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        }
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                        // Realistic Monospace QR Code Box
+                        // Real Scannable High-Res QR Code Image
                         Box(
                             modifier = Modifier
-                                .size(180.dp)
+                                .size(210.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Color.White)
                                 .border(2.dp, GreenDeep, RoundedCornerShape(16.dp))
-                                .padding(12.dp),
+                                .padding(10.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "█▀▀▀▀▀█ ▀█ █▀▀▀▀▀█\n" +
-                                    "█ ███ █ █▀ █ ███ █\n" +
-                                    "█ ▀▀▀ █ ▄▀ █ ▀▀▀ █\n" +
-                                    "▀▀▀▀▀▀▀ █ ▀▀▀▀▀▀▀\n" +
-                                    "▀▄▀▄▀▄▀▀▄█▄▀▄▀▄▀▄\n" +
-                                    "█▀▀▀▀▀█ ▄▄ █ █ ▀▄\n" +
-                                    "█ ███ █ █▀▀██ █▀█\n" +
-                                    "█ ▀▀▀ █ █ ▄▄█ ▀ █\n" +
-                                    "▀▀▀▀▀▀▀ ▀ ▀▀▀ ▀▀▀",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    lineHeight = 12.sp,
-                                    color = Ink,
-                                    textAlign = TextAlign.Center
+                            if (qrBitmap != null) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = "QRIS Dinamis Asli",
+                                    modifier = Modifier.fillMaxSize()
                                 )
-                                Spacer(Modifier.height(6.dp))
-                                Text(formatRupiah(total), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreenDeep)
+                            } else {
+                                CircularProgressIndicator(color = Green, strokeWidth = 3.dp)
                             }
                         }
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(10.dp))
 
+                        // Locked Amount Banner
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(GreenSoft)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Lock, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Nominal Terkunci: ${formatRupiah(total)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = GreenDeep,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Scan via BCA, Mandiri, BRI, GoPay, OVO, Dana, ShopeePay",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = InkSoft,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Tombol Cetak Struk QRIS Meja (Bisa langsung diserahkan ke pelanggan)
+                        OutlinedButton(
+                            onClick = {
+                                if (bluetooth.connected) {
+                                    vm.printQrisBill(total)
+                                    qrisPrintedMessage = "Struk QRIS berhasil dikirim ke printer!"
+                                } else {
+                                    qrisPrintedMessage = "Printer thermal belum terhubung! Silakan hubungkan di menu Printer."
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (bluetooth.connected) Green else Line)
+                        ) {
+                            Icon(Icons.Filled.Print, contentDescription = null, tint = if (bluetooth.connected) GreenDeep else InkSoft, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (bluetooth.connected) "Cetak QR Tagihan ke Struk" else "Printer Belum Terhubung",
+                                color = if (bluetooth.connected) GreenDeep else InkSoft,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        if (qrisPrintedMessage != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                qrisPrintedMessage!!,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (bluetooth.connected) GreenDeep else Danger,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+
+                        // Tombol simulasi
                         Button(
                             onClick = onSimulateQrisPaid,
                             colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             if (qrisChecking) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)

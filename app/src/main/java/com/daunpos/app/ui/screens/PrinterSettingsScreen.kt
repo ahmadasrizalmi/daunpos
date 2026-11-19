@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,15 +36,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -59,12 +65,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.data.qris.QrisConverter
 import com.daunpos.app.ui.components.StatusBadge
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
@@ -181,6 +189,8 @@ fun PrinterSettingsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                QrisSettingsCard(vm = vm)
+
                 PaperAndPreferencesCard(
                     receipt = receipt,
                     onUpdateReceipt = { vm.updateReceiptSettings(it) }
@@ -222,7 +232,11 @@ fun PrinterSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Text("Printer & Struk", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+                Text("Printer & Pengaturan", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
+            }
+
+            item {
+                QrisSettingsCard(vm = vm)
             }
 
             item {
@@ -574,5 +588,223 @@ private fun ToggleRow(
                 uncheckedTrackColor = Line
             )
         )
+    }
+}
+
+@Composable
+private fun QrisSettingsCard(
+    vm: DaunPOSViewModel
+) {
+    val staticQris by vm.staticQris.collectAsState()
+    val bluetooth by vm.bluetoothState.collectAsState()
+    var input by remember(staticQris) { mutableStateOf(staticQris) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+
+    val merchantInfo = remember(input) {
+        if (input.isNotBlank()) QrisConverter.parseMerchantInfo(input.trim()) else null
+    }
+
+    val dynamicPreview = remember(input, merchantInfo) {
+        if (merchantInfo != null && merchantInfo.isValidCrc) {
+            try {
+                val dyn = QrisConverter.convertStaticToDynamic(input.trim(), 10000)
+                QrisConverter.generateQrBitmap(dyn, 320)
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .padding(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GreenSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.QrCode,
+                        contentDescription = null,
+                        tint = GreenDeep,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "QRIS Dinamis Otomatis",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Ink,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Konversi QRIS Statis UMKM ke Dinamis",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = InkSoft
+                    )
+                }
+            }
+
+            Text(
+                "Masukkan string QRIS Statis toko Anda (BCA, GoPay, ShopeePay, Mandiri, OVO, dll). Sistem akan otomatis menambahkan nominal transaksi belanja pelanggan sehingga pembayaran terkunci akurat.",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSoft,
+                lineHeight = 18.sp
+            )
+
+            // Merchant status badge
+            if (merchantInfo != null && merchantInfo.isValidCrc) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GreenSoft)
+                        .border(1.dp, Green.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("EMVCo QRIS Valid & Siap Digunakan", style = MaterialTheme.typography.labelMedium, color = GreenDeep, fontWeight = FontWeight.Bold)
+                        }
+                        if (merchantInfo.merchantName.isNotBlank()) {
+                            Text("Nama Merchant: ${merchantInfo.merchantName}", style = MaterialTheme.typography.bodySmall, color = Ink, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (merchantInfo.city.isNotBlank()) {
+                            Text("Kota: ${merchantInfo.city}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        }
+                        if (merchantInfo.nmid.isNotBlank()) {
+                            Text("NMID: ${merchantInfo.nmid}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        }
+                    }
+                }
+            } else if (input.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DangerSoft)
+                        .border(1.dp, Danger.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Warning, contentDescription = null, tint = Danger, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Format QRIS atau Checksum CRC16 tidak valid. Pastikan string EMVCo lengkap.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Danger,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = input,
+                onValueChange = {
+                    input = it
+                    saveMessage = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("String EMVCo QRIS Statis") },
+                placeholder = { Text("00020101021126...") },
+                minLines = 2,
+                maxLines = 4,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            saveMessage?.let { msg ->
+                Text(msg, style = MaterialTheme.typography.labelSmall, color = GreenDeep, fontWeight = FontWeight.Bold)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        vm.updateStaticQris(input.trim())
+                        saveMessage = "Pengaturan QRIS Toko Berhasil Disimpan!"
+                    },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Simpan QRIS", fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        input = QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS
+                        vm.updateStaticQris(input)
+                        saveMessage = "Contoh QRIS standar diterapkan!"
+                    },
+                    modifier = Modifier.height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                ) {
+                    Text("Pakai Demo", color = InkSoft, fontSize = 12.sp)
+                }
+            }
+
+            // Preview QR & Test Print
+            dynamicPreview?.let { bmp ->
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Bg)
+                        .border(1.dp, Line, RoundedCornerShape(14.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Simulasi QRIS Dinamis (Rp 10.000)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Ink,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Simulasi QRIS",
+                            modifier = Modifier
+                                .size(140.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White)
+                                .padding(6.dp)
+                        )
+                        if (bluetooth.connected) {
+                            OutlinedButton(
+                                onClick = { vm.printQrisBill(10000) },
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Green),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Filled.Print, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Tes Cetak Slip QRIS Rp 10.000", fontSize = 12.sp, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

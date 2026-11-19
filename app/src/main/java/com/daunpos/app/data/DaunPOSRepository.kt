@@ -22,6 +22,9 @@ class DaunPOSRepository(
 
     val receiptSettings: StateFlow<ReceiptSettings> = settingsStore.receipt
     val printerSettings: StateFlow<PrinterSettings> = settingsStore.printer
+    val staticQris: StateFlow<String> = settingsStore.staticQris
+
+    fun updateStaticQris(raw: String) = settingsStore.updateStaticQris(raw)
 
     suspend fun upsertProduct(product: Product) = db.productDao().upsert(product.toEntity())
 

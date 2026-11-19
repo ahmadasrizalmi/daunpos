@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.RestaurantMenu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +68,7 @@ private val tabs = listOf(
     Tab("Kasir", Icons.Filled.PointOfSale),
     Tab("Laporan", Icons.Filled.BarChart),
     Tab("Menu", Icons.Filled.RestaurantMenu),
-    Tab("Printer", Icons.Filled.Print)
+    Tab("Pengaturan", Icons.Filled.Settings)
 )
 
 @Composable

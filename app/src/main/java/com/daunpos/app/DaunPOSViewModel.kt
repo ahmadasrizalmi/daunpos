@@ -13,6 +13,7 @@ import com.daunpos.app.data.ShiftRecord
 import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.User
 import com.daunpos.app.data.UserRole
+import com.daunpos.app.data.qris.QrisConverter
 import com.daunpos.app.printer.BluetoothPrinterManager
 import com.daunpos.app.printer.BluetoothPrinterState
 import com.daunpos.app.printer.ThermalPrinter
@@ -38,6 +39,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         repository.transactions.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val receiptSettings: StateFlow<ReceiptSettings> = repository.receiptSettings
+    val staticQris: StateFlow<String> = repository.staticQris
 
     val printerManager = BluetoothPrinterManager(application)
     val bluetoothState: StateFlow<BluetoothPrinterState> = printerManager.state
@@ -240,6 +242,28 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     fun cancelTransaction(id: String) {
         viewModelScope.launch { repository.cancelTransaction(id) }
+    }
+
+    // ---------- QRIS Generator ----------
+    fun updateStaticQris(raw: String) {
+        repository.updateStaticQris(raw)
+    }
+
+    fun generateDynamicQris(amount: Int): String {
+        return QrisConverter.convertStaticToDynamic(staticQris.value, amount)
+    }
+
+    fun printQrisBill(amount: Int) {
+        val invoiceId = repository.nextInvoiceNumber()
+        val dynamicQris = generateDynamicQris(amount)
+        val data = ThermalPrinter.buildQrisBillBytes(
+            invoiceId = invoiceId,
+            tableNumber = selectedTable.value,
+            amount = amount,
+            dynamicQrisPayload = dynamicQris,
+            settings = receiptSettings.value
+        )
+        printerManager.print(data)
     }
 
     // ---------- Shift Management ----------
