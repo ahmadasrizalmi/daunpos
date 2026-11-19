@@ -88,7 +88,7 @@ fun StoreSetupScreen(
     var address by remember { mutableStateOf("Jl. Daun Hijau No. 8, Bandung") }
     var phone by remember { mutableStateOf("0812-3456-7890") }
 
-    var staticQris by remember { mutableStateOf(QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS) }
+    var staticQris by remember { mutableStateOf("") }
     var ownerPin by remember { mutableStateOf("1234") }
 
     var isMultiUser by remember { mutableStateOf(true) }

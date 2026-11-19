@@ -19,7 +19,7 @@ class SettingsStore(context: Context) {
     val printer: StateFlow<PrinterSettings> = _printer.asStateFlow()
 
     private val _staticQris = MutableStateFlow(
-        prefs.getString("static_qris", null) ?: QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS
+        prefs.getString("static_qris", "") ?: ""
     )
     val staticQris: StateFlow<String> = _staticQris.asStateFlow()
 
@@ -87,7 +87,7 @@ class SettingsStore(context: Context) {
         val category = BusinessCategory.fromId(categoryStr)
         val address = prefs.getString("store_address", "Jl. Daun Hijau No. 8, Bandung") ?: "Jl. Daun Hijau No. 8, Bandung"
         val phone = prefs.getString("store_phone", "0812-3456-7890") ?: "0812-3456-7890"
-        val qris = prefs.getString("static_qris", null) ?: QrisConverter.DEFAULT_SAMPLE_STATIC_QRIS
+        val qris = prefs.getString("static_qris", "") ?: ""
         val isMulti = prefs.getBoolean("is_multi_user", false)
         val completed = prefs.getBoolean("onboarding_completed", false)
 
@@ -134,7 +134,7 @@ class SettingsStore(context: Context) {
     }
 
     fun nextInvoiceNumber(): String {
-        val next = prefs.getInt("next_invoice", 200)
+        val next = prefs.getInt("next_invoice", 184)
         prefs.edit().putInt("next_invoice", next + 1).apply()
         return "#INV-" + next.toString().padStart(4, '0')
     }
@@ -152,7 +152,7 @@ class SettingsStore(context: Context) {
             showLogo = prefs.getBoolean("show_logo", true),
             showQR = prefs.getBoolean("show_qr", true),
             headerLines = headers,
-            footerText = prefs.getString("footer_text", "Terima kasih sudah berkunjung!\nPassword Wi-Fi: kopi123")
+            footerText = prefs.getString("footer_text", "Terima kasih sudah berkunjung!\nSilakan datang kembali.")
                 ?: "Terima kasih sudah berkunjung!"
         )
     }

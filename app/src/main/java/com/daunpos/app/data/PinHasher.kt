@@ -1,5 +1,6 @@
 package com.daunpos.app.data
 
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.SecretKeyFactory
@@ -25,6 +26,10 @@ object PinHasher {
 
     fun verify(pin: String, saltBase64: String, expectedHash: String): Boolean {
         val candidate = hash(pin, saltBase64)
-        return candidate == expectedHash
+        // Constant-time comparison to prevent timing side-channel attacks
+        return MessageDigest.isEqual(
+            candidate.toByteArray(Charsets.UTF_8),
+            expectedHash.toByteArray(Charsets.UTF_8)
+        )
     }
 }

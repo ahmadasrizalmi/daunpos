@@ -28,16 +28,16 @@ class QrisConverterTest {
         val dynamicPayload = QrisConverter.convertStaticToDynamic(sample, amount)
 
         val info = QrisConverter.parseMerchantInfo(dynamicPayload)
-        assertTrue("Setelah konversi, harus bertipe dinamis (Tag 01 = 12)", info.isDynamic)
+        assertTrue("Setelah konversi, harus bertipe dinamis / memiliki nominal", info.isDynamic)
         assertEquals(75000, info.amount)
         assertEquals("DAUNPOS CAFE RESTO", info.merchantName)
         assertEquals("BANDUNG", info.city)
         assertTrue("Checksum CRC16 dari payload dinamis yang baru harus valid", info.isValidCrc)
 
-        // Cek secara spesifik bahwa Tag 54 ada
+        // Cek secara spesifik bahwa Tag 01 tetap 11 dan Tag 54 ada
         val tlvs = QrisConverter.parseTlvs(dynamicPayload)
         val tag01 = tlvs.find { it.tag == "01" }
-        assertEquals("12", tag01?.value)
+        assertEquals("11", tag01?.value)
 
         val tag54 = tlvs.find { it.tag == "54" }
         assertNotNull(tag54)

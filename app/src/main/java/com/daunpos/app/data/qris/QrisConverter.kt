@@ -28,11 +28,13 @@ data class QrisMerchantInfo(
 object QrisConverter {
 
     /**
-     * QRIS Statis standar Bank Indonesia (DANA & National Interoperability)
-     * Dapat digunakan langsung oleh kasir untuk demo atau pengujian mandiri.
+     * QRIS Contoh / Demo (Sample DANA & National Interoperability).
+     * HANYA digunakan untuk mode demo eksplisit atau pengujian unit test.
      */
-    const val DEFAULT_SAMPLE_STATIC_QRIS =
+    const val DEMO_SAMPLE_STATIC_QRIS =
         "00020101021126570011ID.DANA.WWW011893600915302195026202090219502620303UMI51440014ID.CO.QRIS.WWW0215ID10200219502620303UMI5204581253033605802ID5918DAUNPOS CAFE RESTO6007BANDUNG61054011562070703A016304F0D1"
+
+    const val DEFAULT_SAMPLE_STATIC_QRIS = DEMO_SAMPLE_STATIC_QRIS
 
     /**
      * Menghitung Checksum CRC16-CCITT standar Bank Indonesia (Polinom 0x1021, Init 0xFFFF).
@@ -89,12 +91,13 @@ object QrisConverter {
         val tlvs = parseTlvs(clean).toMutableList()
         if (tlvs.isEmpty()) return clean
 
-        // 1. Tag 01: Set Point of Initiation Method to '12' (Dynamic)
+        // 1. Tag 01: Point of Initiation Method
+        // Menjaga Tag 01 tetap '11' (atau nilai bawaan QRIS statis merchant).
+        // Sesuai standar ASPI/EMVCo, Tag 01=11 yang disertai Tag 54 (Transaction Amount)
+        // didukung luas dan aman diproses oleh seluruh bank & e-wallet tanpa memerlukan Tag 28 URL.
         val tag01Index = tlvs.indexOfFirst { it.tag == "01" }
-        if (tag01Index != -1) {
-            tlvs[tag01Index] = QrisTlv("01", 2, "12")
-        } else {
-            tlvs.add(0, QrisTlv("01", 2, "12"))
+        if (tag01Index == -1) {
+            tlvs.add(0, QrisTlv("01", 2, "11"))
         }
 
         // 2. Tag 53: Currency Code (360 = IDR)
@@ -154,7 +157,7 @@ object QrisConverter {
         val merchantName = tlvs.find { it.tag == "59" }?.value ?: "Merchant DaunPOS"
         val city = tlvs.find { it.tag == "60" }?.value ?: "Indonesia"
         val postalCode = tlvs.find { it.tag == "61" }?.value ?: ""
-        val isDynamic = tlvs.find { it.tag == "01" }?.value == "12"
+        val isDynamic = tlvs.find { it.tag == "01" }?.value == "12" || tlvs.any { it.tag == "54" }
         val amount = tlvs.find { it.tag == "54" }?.value?.toIntOrNull()
 
         // Cari NMID: utamakan Tag 51 (Standar NMID Nasional Bank Indonesia), lalu tag 26..50

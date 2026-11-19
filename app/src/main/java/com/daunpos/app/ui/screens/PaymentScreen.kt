@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.TableRestaurant
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -555,10 +557,60 @@ private fun PaymentOptionsContent(
             }
 
             PaymentMethod.QRIS -> {
-                // Generate Real Dynamic QRIS Payload & Real Bitmap
-                val dynamicPayload = remember(staticQris, total) {
-                    vm.generateDynamicQris(total)
-                }
+                if (staticQris.isBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFFBFDFB))
+                            .border(1.5.dp, Line, RoundedCornerShape(20.dp))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFBEAE7)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = Danger,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "QRIS Toko Belum Dikonfigurasi",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Ink
+                            )
+                            Text(
+                                text = "Silakan masukkan string QRIS statis merchant Anda di menu Pengaturan, atau gunakan QRIS contoh untuk mode demo.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = InkSoft,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(
+                                onClick = { vm.updateStaticQris(QrisConverter.DEMO_SAMPLE_STATIC_QRIS) },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Gunakan QRIS Contoh (Mode Demo)", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    // Generate Real Dynamic QRIS Payload & Real Bitmap
+                    val dynamicPayload = remember(staticQris, total) {
+                        vm.generateDynamicQris(total)
+                    }
                 val merchantInfo = remember(dynamicPayload) {
                     QrisConverter.parseMerchantInfo(dynamicPayload)
                 }
@@ -689,34 +741,41 @@ private fun PaymentOptionsContent(
                     }
                 }
             }
+        }
 
-            PaymentMethod.TRANSFER -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color.White)
-                        .border(1.dp, Line, RoundedCornerShape(18.dp))
-                        .padding(20.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Transfer ke rekening kafe:", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
-                        Text("• BCA: 8830-192-881 (a.n. DaunPOS Cafe)", style = MaterialTheme.typography.bodyMedium, color = Ink)
-                        Text("• Mandiri: 131-00-9821-332 (a.n. DaunPOS)", style = MaterialTheme.typography.bodyMedium, color = Ink)
-                        Text("• Pastikan nominal transfer sesuai: " + formatRupiah(total), style = MaterialTheme.typography.bodySmall, color = GreenDeep, fontWeight = FontWeight.Bold)
-                    }
+        PaymentMethod.TRANSFER -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White)
+                    .border(1.dp, Line, RoundedCornerShape(18.dp))
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Transfer ke rekening kafe:", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("• BCA: 8830-192-881 (a.n. DaunPOS Cafe)", style = MaterialTheme.typography.bodyMedium, color = Ink)
+                    Text("• Mandiri: 131-00-9821-332 (a.n. DaunPOS)", style = MaterialTheme.typography.bodyMedium, color = Ink)
+                    Text("• Pastikan nominal transfer sesuai: " + formatRupiah(total), style = MaterialTheme.typography.bodySmall, color = GreenDeep, fontWeight = FontWeight.Bold)
                 }
             }
         }
+    }
 
-        Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(4.dp))
 
-        Button(
-            onClick = onSubmit,
-            enabled = (method != PaymentMethod.CASH || change >= 0),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
+    val isCheckoutEnabled = when (method) {
+        PaymentMethod.CASH -> change >= 0
+        PaymentMethod.QRIS -> staticQris.isNotBlank()
+        PaymentMethod.TRANSFER -> true
+    }
+
+    Button(
+        onClick = onSubmit,
+        enabled = isCheckoutEnabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Green,
                 contentColor = Color.White,
