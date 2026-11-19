@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Radar
@@ -195,6 +196,8 @@ fun PrinterSettingsScreen(
 
                 QrisSettingsCard(vm = vm)
 
+                BankNotificationListenerCard(context = context)
+
                 PaperAndPreferencesCard(
                     receipt = receipt,
                     onUpdateReceipt = { vm.updateReceiptSettings(it) }
@@ -245,6 +248,10 @@ fun PrinterSettingsScreen(
 
             item {
                 QrisSettingsCard(vm = vm)
+            }
+
+            item {
+                BankNotificationListenerCard(context = context)
             }
 
             item {
@@ -907,6 +914,206 @@ private fun StoreProfileSummaryCard(
                     fontWeight = FontWeight.SemiBold,
                     color = GreenDeep
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BankNotificationListenerCard(
+    context: android.content.Context
+) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isGranted by remember {
+        mutableStateOf(com.daunpos.app.notification.PaymentNotificationBridge.isNotificationAccessGranted(context))
+    }
+    val isConnected by com.daunpos.app.notification.PaymentNotificationBridge.isServiceConnected.collectAsState()
+    val recentList by com.daunpos.app.notification.PaymentNotificationBridge.recentNotifications.collectAsState()
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isGranted = com.daunpos.app.notification.PaymentNotificationBridge.isNotificationAccessGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .padding(18.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isGranted) GreenSoft else DangerSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.NotificationsActive,
+                        contentDescription = null,
+                        tint = if (isGranted) GreenDeep else Danger,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Auto-Verifikasi Bank & QRIS",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Ink
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Deteksi mutasi BCA, Mandiri, BRI, BNI, GoBiz, DANA, OVO, ShopeePay",
+                        fontSize = 11.sp,
+                        color = InkSoft
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Status chip & actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isGranted) GreenSoft else Color(0xFFFBEAE7))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = if (isGranted) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+                        contentDescription = null,
+                        tint = if (isGranted) GreenDeep else Danger,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isGranted) {
+                            if (isConnected) "Layanan Aktif & Terhubung di Latar Belakang" else "Izin Aktif (Menunggu Notifikasi)"
+                        } else {
+                            "Izin Akses Notifikasi Belum Diaktifkan"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isGranted) GreenDeep else Danger
+                    )
+                }
+
+                if (!isGranted) {
+                    Button(
+                        onClick = { com.daunpos.app.notification.PaymentNotificationBridge.openNotificationSettings(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Danger),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Recent detected notifications
+            Text(
+                text = "Riwayat Notifikasi Terbaru (Live Listener):",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Ink
+            )
+            Spacer(Modifier.height(6.dp))
+
+            if (recentList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF7F9F7))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Belum ada notifikasi pembayaran yang tertangkap.",
+                        fontSize = 11.sp,
+                        color = InkSoft
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    recentList.take(3).forEach { notif ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(GreenSoft)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "${notif.bankName} ${if (notif.senderName.isNotBlank()) "· " + notif.senderName else ""}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GreenDeep
+                                )
+                                Text(
+                                    notif.rawTitle.ifBlank { notif.rawText },
+                                    fontSize = 10.sp,
+                                    color = InkSoft,
+                                    maxLines = 1
+                                )
+                            }
+                            Text(
+                                com.daunpos.app.data.formatRupiah(notif.amount),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GreenDeep
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Test simulation button
+            OutlinedButton(
+                onClick = {
+                    com.daunpos.app.notification.PaymentNotificationBridge.postPayment(
+                        com.daunpos.app.notification.BankNotificationEvent(
+                            sourcePackage = "id.co.bri.brimo",
+                            bankName = "BRImo (Bank BRI)",
+                            amount = 25000,
+                            senderName = "Budi Santoso",
+                            rawTitle = "Transfer Masuk Berhasil",
+                            rawText = "Dana masuk sebesar Rp 25.000 dari Budi Santoso"
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(38.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+            ) {
+                Text("Kirim Notifikasi Uji Coba (Simulasi BRImo Rp 25.000)", fontSize = 11.sp, color = InkSoft)
             }
         }
     }
