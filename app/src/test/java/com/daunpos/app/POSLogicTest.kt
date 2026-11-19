@@ -23,6 +23,37 @@ class POSLogicTest {
         assertTrue(PinHasher.verify("1234", salt, hash))
         assertFalse(PinHasher.verify("0000", salt, hash))
         assertFalse(PinHasher.verify("1235", salt, hash))
+
+        // Security guards for uninitialized or placeholder staff
+        assertFalse(PinHasher.verify("1234", "", ""))
+        assertFalse(PinHasher.verify("1234", "-", "NO_LOGIN"))
+        assertFalse(PinHasher.verify("", "-", "NO_LOGIN"))
+    }
+
+    @Test
+    fun testTransactionDestinationProperties() {
+        val txFnb = Transaction(
+            id = "TX-01",
+            dateTime = System.currentTimeMillis(),
+            items = emptyList(),
+            subtotal = 10000,
+            total = 10000,
+            paymentMethod = PaymentMethod.CASH,
+            tableNumber = "Meja 05"
+        )
+        org.junit.Assert.assertEquals("Meja", txFnb.destinationLabel)
+        org.junit.Assert.assertNull(txFnb.assignedStaff)
+        org.junit.Assert.assertNull(txFnb.customerType)
+
+        val txService = txFnb.copy(tableNumber = "Staf: Dimas")
+        org.junit.Assert.assertEquals("Staf", txService.destinationLabel)
+        org.junit.Assert.assertEquals("Dimas", txService.assignedStaff)
+        org.junit.Assert.assertNull(txService.customerType)
+
+        val txRetail = txFnb.copy(tableNumber = "Pelanggan Umum")
+        org.junit.Assert.assertEquals("Pelanggan", txRetail.destinationLabel)
+        org.junit.Assert.assertEquals("Pelanggan Umum", txRetail.customerType)
+        org.junit.Assert.assertNull(txRetail.assignedStaff)
     }
 
     @Test

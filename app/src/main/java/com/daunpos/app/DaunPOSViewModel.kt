@@ -141,10 +141,12 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
             _activeShift.value = repository.getActiveShift()
         }
 
-        // Sinkronkan default meja / tipe pelanggan / staf sesuai jenis usaha
+        // Sinkronkan default meja / tipe pelanggan / staf saat kategori berubah
         viewModelScope.launch {
+            var lastCategory: BusinessCategory? = null
             repository.storeProfile.collect { profile ->
-                if (_selectedTable.value == "Meja 04" || _selectedTable.value.isBlank()) {
+                if (lastCategory != profile.businessCategory) {
+                    lastCategory = profile.businessCategory
                     _selectedTable.value = when (profile.businessCategory) {
                         BusinessCategory.FNB -> "Take Away"
                         BusinessCategory.RETAIL -> "Pelanggan Umum"

@@ -114,7 +114,20 @@ data class Transaction(
     val status: String = "SUKSES",
     val note: String = "",
     val tableNumber: String = "Take Away"
-)
+) {
+    val destinationLabel: String
+        get() = when {
+            tableNumber.startsWith("Staf:") || tableNumber.startsWith("Staff:") || tableNumber.startsWith("Petugas:") -> "Staf"
+            tableNumber.startsWith("Pelanggan") || tableNumber in listOf("Member", "Grosir", "Reseller", "Online / Kurir") -> "Pelanggan"
+            else -> "Meja"
+        }
+
+    val assignedStaff: String?
+        get() = if (destinationLabel == "Staf") tableNumber.substringAfter(":").trim() else null
+
+    val customerType: String?
+        get() = if (destinationLabel == "Pelanggan") tableNumber else null
+}
 
 data class ShiftRecord(
     val id: String,
