@@ -1,8 +1,9 @@
 package com.daunpos.app.data
 
+import androidx.room.withTransaction
 import com.daunpos.app.data.local.DaunPOSDatabase
-import com.daunpos.app.data.local.ShiftEntity
-import com.daunpos.app.data.local.TransactionEntity
+import com.daunpos.app.data.local.StoreStaffEntity
+import com.daunpos.app.data.local.UserEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -26,12 +27,17 @@ class DaunPOSRepository(
     val receiptSettings: StateFlow<ReceiptSettings> = settingsStore.receipt
     val printerSettings: StateFlow<PrinterSettings> = settingsStore.printer
     val staticQris: StateFlow<String> = settingsStore.staticQris
+    val bankAccountSettings: StateFlow<BankAccountSettings> = settingsStore.bankAccount
     val isOnboardingCompleted: StateFlow<Boolean> = settingsStore.isOnboardingCompleted
     val storeProfile: StateFlow<StoreProfile> = settingsStore.storeProfile
 
     fun updateStaticQris(raw: String) = settingsStore.updateStaticQris(raw)
 
+    fun updateBankAccountSettings(settings: BankAccountSettings) =
+        settingsStore.updateBankAccount(settings)
+
     suspend fun saveStoreProfile(profile: StoreProfile) {
+        db.storeProfileDao().upsert(profile.toEntity())
         settingsStore.completeOnboarding(
             name = profile.storeName,
             category = profile.businessCategory,
@@ -40,7 +46,6 @@ class DaunPOSRepository(
             qris = profile.staticQris,
             isMultiUser = profile.isMultiUserEnabled
         )
-        db.storeProfileDao().upsert(profile.toEntity())
     }
 
     suspend fun completeOnboarding(
@@ -53,91 +58,81 @@ class DaunPOSRepository(
         ownerPin: String,
         cashierPin: String? = null
     ) {
+        require(name.isNotBlank()) { "Nama toko wajib diisi." }
+        require(PinPolicy.isAcceptableNewPin(ownerPin)) { "PIN pemilik harus 4–6 digit dan bukan PIN bawaan." }
+        if (isMultiUser) {
+            require(cashierPin != null && PinPolicy.isAcceptableNewPin(cashierPin)) {
+                "PIN kasir harus 4–6 digit dan bukan PIN bawaan."
+            }
+        }
+
         val profile = StoreProfile(
-            storeName = name,
+            storeName = name.trim(),
             businessCategory = category,
-            address = address,
-            phoneNumber = phone,
-            taxPercentage = category.defaultTax,
-            staticQris = staticQris,
+            address = address.trim(),
+            phoneNumber = phone.trim(),
+            taxPercentage = 0,
+            staticQris = staticQris.trim(),
             isMultiUserEnabled = isMultiUser,
             isOnboardingCompleted = true
         )
-        saveStoreProfile(profile)
 
-        // Update Owner PIN
-        if (ownerPin.isNotBlank()) {
-            val salt = PinHasher.generateSalt()
-            val hash = PinHasher.hash(ownerPin, salt)
-            db.userDao().deleteByUsername("owner")
-            db.userDao().insert(com.daunpos.app.data.local.UserEntity("owner", hash, salt, UserRole.OWNER.name))
+        val ownerSalt = PinHasher.generateSalt()
+        val ownerUser = UserEntity(
+            username = "owner",
+            pinHash = PinHasher.hash(ownerPin, ownerSalt),
+            pinSalt = ownerSalt,
+            role = UserRole.OWNER.name
+        )
+
+        val cashierUser = if (isMultiUser) {
+            val cashierSalt = PinHasher.generateSalt()
+            UserEntity(
+                username = "kasir",
+                pinHash = PinHasher.hash(requireNotNull(cashierPin), cashierSalt),
+                pinSalt = cashierSalt,
+                role = UserRole.KASIR.name
+            )
+        } else null
+
+        db.withTransaction {
+            db.storeProfileDao().upsert(profile.toEntity())
+            db.userDao().upsert(ownerUser)
+            if (cashierUser != null) {
+                db.userDao().upsert(cashierUser)
+            } else {
+                db.userDao().deleteByUsername("kasir")
+            }
         }
 
-        // Update or insert Cashier PIN if multi-user
-        if (isMultiUser && !cashierPin.isNullOrBlank()) {
-            val salt = PinHasher.generateSalt()
-            val hash = PinHasher.hash(cashierPin, salt)
-            db.userDao().deleteByUsername("kasir")
-            db.userDao().insert(com.daunpos.app.data.local.UserEntity("kasir", hash, salt, UserRole.KASIR.name))
-        }
-
-        // Replace product catalog with industry-specific catalog
-        seedCategoryProducts(category)
+        settingsStore.completeOnboarding(
+            name = profile.storeName,
+            category = category,
+            address = profile.address,
+            phone = profile.phoneNumber,
+            qris = profile.staticQris,
+            isMultiUser = isMultiUser
+        )
     }
 
-    suspend fun seedCategoryProducts(category: BusinessCategory) {
-        val existing = db.productDao().getAll()
-        existing.forEach { db.productDao().deleteById(it.id) }
-
-        val templateProducts = when (category) {
-            BusinessCategory.FNB -> listOf(
-                Product("P001", "Es Kopi Daun", "Kopi", 22000, 8000, true, 45, "", 0, "☕", 0xFFE7F4EA, null),
-                Product("P002", "Americano", "Kopi", 20000, 7000, true, 30, "", 0, "🫘", 0xFFEFE7D6, null),
-                Product("P003", "Cappuccino", "Kopi", 28000, 10000, true, 25, "", 0, "🥛", 0xFFE7F4EA, null),
-                Product("P004", "Cafe Latte", "Kopi", 30000, 11000, true, 35, "", 0, "☕", 0xFFF2E9DE, null),
-                Product("P005", "Matcha Latte", "Non-Kopi", 28000, 10000, true, 20, "", 0, "🍵", 0xFFE8F6ED, null),
-                Product("P006", "Es Teh Manis", "Non-Kopi", 12000, 3000, true, 80, "", 0, "🧋", 0xFFE8F1FA, null),
-                Product("P007", "Nasi Goreng Spesial", "Makanan Berat", 35000, 15000, true, 15, "", 0, "🍛", 0xFFFBE9DC, null),
-                Product("P008", "Butter Croissant", "Snack", 22000, 9000, true, 20, "", 0, "🥐", 0xFFF5EFDF, null)
-            )
-            BusinessCategory.RETAIL -> listOf(
-                Product("P001", "Kaos Polos Combed 30s", "Pakaian", 65000, 35000, true, 40, "899123456001", 0, "👕", 0xFFE7F4EA, null),
-                Product("P002", "Celana Chino Slim Fit", "Pakaian", 135000, 75000, true, 25, "899123456002", 0, "👖", 0xFFEFE7D6, null),
-                Product("P003", "Minuman Isotonik 500ml", "Minuman", 7500, 5000, true, 100, "899123456003", 0, "🥤", 0xFFE8F1FA, null),
-                Product("P004", "Kopi Kaleng Cold Brew", "Minuman", 15000, 9500, true, 40, "899123456004", 0, "☕", 0xFFF2E9DE, null),
-                Product("P005", "Keripik Kentang Balado 85g", "Snack", 12500, 8000, true, 60, "899123456005", 0, "🍟", 0xFFFBF3D9, null),
-                Product("P006", "Roti Sobek Cokelat Keju", "Snack", 16000, 11000, true, 25, "899123456006", 0, "🍞", 0xFFFBE9DC, null),
-                Product("P007", "Baterai Alkaline AA Isi 4", "Aksesoris", 28000, 19000, true, 45, "899123456007", 0, "🔋", 0xFFEFE3DC, null)
-            )
-            BusinessCategory.SERVICE -> listOf(
-                Product("P001", "Sesi Foto Studio (30 Mnt)", "Studio Foto", 150000, 0, true, 999, "", 30, "📸", 0xFFE7F4EA, null),
-                Product("P002", "Paket Wisuda / Grup (50 Mnt)", "Studio Foto", 250000, 0, true, 999, "", 50, "🎓", 0xFFEFE7D6, null),
-                Product("P003", "Cetak Foto + Frame 10R", "Cetak & Cetakan", 50000, 20000, true, 999, "FOTO10R", 0, "🖼️", 0xFFFBF3D9, null),
-                Product("P004", "Gentlemen Haircut + Cuci", "Haircut", 45000, 0, true, 999, "", 30, "✂️", 0xFFE7F4EA, null),
-                Product("P005", "Haircut Premium + Pijat Bahu", "Haircut", 65000, 0, true, 999, "", 45, "💈", 0xFFEFE7D6, null),
-                Product("P006", "Cuci Rambut + Creambath Herbal", "Treatment", 55000, 10000, true, 999, "", 45, "💆", 0xFFE8F1FA, null),
-                Product("P007", "Servis Ringan / Pengecekan", "Servis & Reparasi", 75000, 0, true, 999, "SRV01", 60, "🛠️", 0xFFEFE3DC, null)
-            )
-        }
-
-        templateProducts.forEach { upsertProduct(it) }
-
-        // Seed default staff for SERVICE if empty
-        if (category == BusinessCategory.SERVICE && db.storeStaffDao().getAll().isEmpty()) {
-            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-1", "Dimas (Fotografer / Stylist)", "STAFF", "-", "NO_LOGIN", true))
-            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-2", "Sarah (Editor / Terapis)", "STAFF", "-", "NO_LOGIN", true))
-            db.storeStaffDao().upsert(com.daunpos.app.data.local.StoreStaffEntity("STF-3", "Budi (Teknisi / Operator)", "STAFF", "-", "NO_LOGIN", true))
-        }
+    suspend fun upsertProduct(product: Product) {
+        require(product.id.isNotBlank()) { "ID produk wajib diisi." }
+        require(product.name.isNotBlank()) { "Nama produk wajib diisi." }
+        require(product.category.isNotBlank()) { "Kategori produk wajib diisi." }
+        require(product.price > 0) { "Harga jual harus lebih besar dari nol." }
+        require(product.costPrice >= 0) { "Harga modal tidak boleh negatif." }
+        require(product.stock >= 0) { "Stok tidak boleh negatif." }
+        require(product.durationMinutes >= 0) { "Durasi tidak boleh negatif." }
+        db.productDao().upsert(product.toEntity())
     }
-
-    suspend fun upsertProduct(product: Product) = db.productDao().upsert(product.toEntity())
 
     suspend fun deleteProduct(id: String) = db.productDao().deleteById(id)
 
-    suspend fun toggleProductAvailable(id: String) {
-        val all = db.productDao().getAll()
-        val target = all.find { it.id == id } ?: return
-        db.productDao().upsert(target.copy(available = !target.available))
+    suspend fun toggleProductAvailable(id: String, trackStock: Boolean = true) {
+        val target = db.productDao().getById(id) ?: return
+        db.productDao().upsert(
+            target.copy(available = !target.available && (!trackStock || target.stock > 0))
+        )
     }
 
     suspend fun nextProductId(): String {
@@ -150,8 +145,16 @@ class DaunPOSRepository(
         db.productDao().getByBarcodeOrId(code.trim())?.toDomain()
 
     suspend fun addStaff(name: String, role: String = "STAFF"): StoreStaff {
+        require(name.isNotBlank()) { "Nama staf wajib diisi." }
         val id = "STF-${System.currentTimeMillis()}"
-        val entity = com.daunpos.app.data.local.StoreStaffEntity(id = id, name = name, role = role, pinSalt = "-", pinHash = "NO_LOGIN", isActive = true)
+        val entity = StoreStaffEntity(
+            id = id,
+            name = name.trim(),
+            role = role,
+            pinSalt = "-",
+            pinHash = "NO_LOGIN",
+            isActive = true
+        )
         db.storeStaffDao().upsert(entity)
         return entity.toDomain()
     }
@@ -160,30 +163,102 @@ class DaunPOSRepository(
         db.storeStaffDao().deleteById(id)
     }
 
-    suspend fun insertTransaction(tx: Transaction) {
-        // 1. Simpan transaksi
-        db.transactionDao().insert(tx.toEntity())
+    suspend fun insertTransaction(tx: Transaction, trackStock: Boolean = true) {
+        require(tx.items.isNotEmpty()) { "Keranjang transaksi kosong." }
+        require(tx.total > 0) { "Total transaksi harus lebih besar dari nol." }
+        require(tx.items.all { it.productId.isNotBlank() && it.quantity > 0 && it.price > 0 }) {
+            "Rincian item transaksi tidak valid."
+        }
 
-        // 2. Potong stok otomatis untuk setiap item
-        tx.items.forEach { item ->
-            db.productDao().deductStock(item.productId, item.quantity)
-            // Jika stok habis, nonaktifkan otomatis
-            val updated = db.productDao().getAll().find { it.id == item.productId }
-            if (updated != null && updated.stock <= 0) {
-                db.productDao().setAvailable(item.productId, false)
+        val calculatedSubtotal = tx.items.sumOf { it.price.toLong() * it.quantity.toLong() }
+        require(calculatedSubtotal <= Int.MAX_VALUE && calculatedSubtotal.toInt() == tx.subtotal) {
+            "Subtotal berubah. Periksa kembali keranjang."
+        }
+        require(tx.discount == FinancialPolicy.normalizeDiscount(tx.discount, tx.subtotal)) {
+            "Diskon berada di luar rentang subtotal."
+        }
+        require(tx.total.toLong() == tx.subtotal.toLong() - tx.discount.toLong() + tx.tax.toLong()) {
+            "Total transaksi tidak konsisten."
+        }
+
+        db.withTransaction {
+            check(db.transactionDao().getById(tx.id) == null) { "Nomor transaksi sudah digunakan." }
+
+            val quantities = tx.items.groupBy { it.productId }
+                .mapValues { (_, items) -> items.sumOf { it.quantity } }
+
+            quantities.forEach { (productId, quantity) ->
+                val product = db.productDao().getById(productId)
+                    ?: error("Produk ${productId} tidak ditemukan. Muat ulang keranjang.")
+                check(product.available) {
+                    "${product.name} sedang dinonaktifkan."
+                }
+                if (trackStock) {
+                    check(product.stock >= quantity) {
+                        "Stok ${product.name} tidak mencukupi. Stok tersedia: ${product.stock}."
+                    }
+                }
+                val transactionPrice = tx.items.first { it.productId == productId }.price
+                check(product.price == transactionPrice) {
+                    "Harga ${product.name} berubah. Muat ulang keranjang sebelum membayar."
+                }
+            }
+
+            db.transactionDao().insert(tx.toEntity())
+
+            if (trackStock) {
+                quantities.forEach { (productId, quantity) ->
+                    check(db.productDao().deductStock(productId, quantity) == 1) {
+                        "Stok berubah saat checkout. Transaksi dibatalkan."
+                    }
+                    val updated = db.productDao().getById(productId)
+                    if (updated != null && updated.stock == 0) {
+                        db.productDao().setAvailable(productId, false)
+                    }
+                }
             }
         }
     }
 
-    suspend fun cancelTransaction(id: String) = db.transactionDao().updateStatus(id, "BATAL")
+    suspend fun getTransaction(id: String): Transaction? =
+        db.transactionDao().getById(id)?.toDomain()
+
+    suspend fun cancelTransaction(id: String, restoreStock: Boolean = true) {
+        db.withTransaction {
+            val entity = db.transactionDao().getById(id) ?: return@withTransaction
+            if (entity.status != "SUKSES") return@withTransaction
+
+            val transaction = entity.toDomain()
+            db.transactionDao().updateStatus(id, "BATAL")
+            if (restoreStock) {
+                transaction.items.groupBy { it.productId }
+                    .forEach { (productId, items) ->
+                        db.productDao().restoreStock(productId, items.sumOf { it.quantity })
+                    }
+            }
+        }
+    }
 
     suspend fun authenticate(username: String, pin: String): User? {
         val entity = db.userDao().getByUsername(username) ?: return null
-        return if (PinHasher.verify(pin, entity.pinSalt, entity.pinHash)) {
-            User(username = entity.username, role = UserRole.valueOf(entity.role))
-        } else {
-            null
-        }
+        if (!PinHasher.verify(pin, entity.pinSalt, entity.pinHash)) return null
+        return User(
+            username = entity.username,
+            role = UserRole.valueOf(entity.role),
+            requiresPinChange = PinPolicy.requiresRotation(entity.username, pin)
+        )
+    }
+
+    suspend fun changePin(username: String, newPin: String) {
+        require(PinPolicy.isAcceptableNewPin(newPin)) { "PIN baru harus 4–6 digit dan tidak boleh memakai PIN bawaan." }
+        val current = db.userDao().getByUsername(username) ?: error("Pengguna tidak ditemukan.")
+        val salt = PinHasher.generateSalt()
+        db.userDao().upsert(
+            current.copy(
+                pinSalt = salt,
+                pinHash = PinHasher.hash(newPin, salt)
+            )
+        )
     }
 
     suspend fun listTransactions(): List<Transaction> =
@@ -195,10 +270,12 @@ class DaunPOSRepository(
 
     fun updatePrinterSettings(settings: PrinterSettings) = settingsStore.updatePrinter(settings)
 
-    // Shift management
     suspend fun getActiveShift(): ShiftRecord? = db.shiftDao().getActiveShift()?.toDomain()
 
     suspend fun openShift(cashierName: String, startCash: Int): ShiftRecord {
+        require(startCash >= 0) { "Saldo awal kas tidak boleh negatif." }
+        val active = db.shiftDao().getActiveShift()
+        check(active == null) { "Masih ada shift yang belum ditutup." }
         val shift = ShiftRecord(
             id = "SH-${System.currentTimeMillis()}",
             cashierName = cashierName,
@@ -211,21 +288,27 @@ class DaunPOSRepository(
     }
 
     suspend fun closeShift(shiftId: String, endCash: Int, transactions: List<Transaction>): ShiftRecord? {
-        val current = db.shiftDao().getActiveShift() ?: return null
-        val cashSales = transactions.filter { it.paymentMethod == PaymentMethod.CASH && it.status == "SUKSES" }.sumOf { it.total }
-        val qrisSales = transactions.filter { it.paymentMethod == PaymentMethod.QRIS && it.status == "SUKSES" }.sumOf { it.total }
-        val transferSales = transactions.filter { it.paymentMethod == PaymentMethod.TRANSFER && it.status == "SUKSES" }.sumOf { it.total }
+        require(endCash >= 0) { "Saldo akhir kas tidak boleh negatif." }
+        val current = db.shiftDao().getActiveShift()?.toDomain() ?: return null
+        if (current.id != shiftId) return null
+        val closedAt = System.currentTimeMillis()
+        val shiftTransactions = transactions.filter {
+            it.dateTime in current.startTime..closedAt && it.status == "SUKSES"
+        }
+        val cashSales = shiftTransactions.filter { it.paymentMethod == PaymentMethod.CASH }.sumOf { it.total }
+        val qrisSales = shiftTransactions.filter { it.paymentMethod == PaymentMethod.QRIS }.sumOf { it.total }
+        val transferSales = shiftTransactions.filter { it.paymentMethod == PaymentMethod.TRANSFER }.sumOf { it.total }
 
         val closed = current.copy(
-            endTime = System.currentTimeMillis(),
+            endTime = closedAt,
             endCash = endCash,
             totalCashSales = cashSales,
             totalQrisSales = qrisSales,
             totalTransferSales = transferSales,
-            totalTransactions = transactions.size,
+            totalTransactions = shiftTransactions.size,
             status = "CLOSED"
         )
-        db.shiftDao().upsert(closed)
-        return closed.toDomain()
+        db.shiftDao().upsert(closed.toEntity())
+        return closed
     }
 }

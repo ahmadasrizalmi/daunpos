@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,10 +33,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Remove
@@ -43,19 +43,23 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,8 +80,9 @@ import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.BusinessCategory
 import com.daunpos.app.data.CartItem
 import com.daunpos.app.data.Product
-import com.daunpos.app.data.StoreStaff
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.data.formatDurationMinutes
+import com.daunpos.app.ui.components.DaunPOSLogoMark
 import com.daunpos.app.ui.components.EmptyState
 import com.daunpos.app.ui.components.ProductMenuCard
 import com.daunpos.app.ui.theme.Bg
@@ -88,12 +93,15 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val fnbTableOptions = listOf("Take Away", "Meja 01", "Meja 02", "Meja 03", "Meja 04", "Meja 05", "Meja 06")
 private val retailCustomerOptions = listOf("Pelanggan Umum", "Member", "Grosir", "Reseller", "Online / Kurir")
+private val serviceDestinationOptions = listOf("Layanan", "Pelanggan", "Online / Kurir")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun POSScreen(
     vm: DaunPOSViewModel,
@@ -101,28 +109,35 @@ fun POSScreen(
     onPrinterSettings: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
+    val compactPhone = config.screenWidthDp <= 360
 
     val products by vm.products.collectAsState()
     val cart by vm.cart.collectAsState()
     val cashier by vm.cashier.collectAsState()
     val bluetooth by vm.bluetoothState.collectAsState()
     val selectedTable by vm.selectedTable.collectAsState()
-    val discount by vm.discount.collectAsState()
     val storeProfile by vm.storeProfile.collectAsState()
-    val staffList by vm.staffList.collectAsState()
+    val receiptSettings by vm.receiptSettings.collectAsState()
 
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Semua") }
     var tableMenuOpen by remember { mutableStateOf(false) }
-    var showStaffDialog by remember { mutableStateOf(false) }
     var activeNoteItem by remember { mutableStateOf<CartItem?>(null) }
     var barcodeFeedback by remember { mutableStateOf<String?>(null) }
+    var showCartSheet by remember { mutableStateOf(false) }
+    val cartSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val category = storeProfile.businessCategory
     val isRetail = category == BusinessCategory.RETAIL
     val isService = category == BusinessCategory.SERVICE
+
+    LaunchedEffect(category, selectedTable) {
+        if (isService && selectedTable == "Take Away") {
+            vm.setTable("Layanan")
+        }
+    }
 
     // Dynamic category chips extracted from available products
     val dynamicCategories = remember(products) {
@@ -172,7 +187,7 @@ fun POSScreen(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = {
-                        Text(if (isRetail) "Cari nama barang atau ketik SKU… (⌘K)" else "Cari menu atau layanan… (⌘K)")
+                        Text(if (isRetail) "Cari nama barang atau ketik SKU…" else "Cari ${category.itemLabel.lowercase()}…")
                     },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = InkSoft) },
                     singleLine = true,
@@ -231,23 +246,27 @@ fun POSScreen(
                     EmptyState("🔍", "Katalog kosong", "Tidak ada item yang sesuai kriteria pencarian.")
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Adaptive(minSize = 130.dp),
                         contentPadding = PaddingValues(bottom = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(filtered, key = { it.id }) { product ->
-                            ProductMenuCard(product = product, onClick = { vm.addToCart(product) })
+                            ProductMenuCard(
+                                product = product,
+                                onClick = { vm.addToCart(product) },
+                                trackStock = !isService
+                            )
                         }
                     }
                 }
             }
 
-            // Right Pane: Sticky Order Summary / Cart Panel (380dp)
+            // Right Pane: Sticky Order Summary / Cart Panel (350dp)
             Box(
                 modifier = Modifier
-                    .width(380.dp)
+                    .width(350.dp)
                     .fillMaxHeight()
                     .background(Color.White)
                     .border(1.dp, Line)
@@ -255,92 +274,88 @@ fun POSScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(16.dp)
                 ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Pesanan", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Pesanan", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
 
-                            // Adaptive Destination Selector (Meja vs Pelanggan vs Staf)
-                            AdaptiveDestinationBadge(
-                                category = category,
-                                selectedTable = selectedTable,
-                                onOpenFnbDropdown = { tableMenuOpen = true },
-                                onOpenStaffDialog = { showStaffDialog = true }
-                            )
+                        AdaptiveDestinationBadge(
+                            category = category,
+                            selectedTable = selectedTable,
+                            onOpenDropdown = { tableMenuOpen = true }
+                        )
 
-                            // Dropdown for F&B or Retail
-                            if (!isService) {
-                                DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
-                                    val options = if (isRetail) retailCustomerOptions else fnbTableOptions
-                                    options.forEach { opt ->
-                                        DropdownMenuItem(
-                                            text = { Text(opt) },
-                                            onClick = {
-                                                vm.setTable(opt)
-                                                tableMenuOpen = false
-                                            }
-                                        )
-                                    }
-                                }
+                        DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
+                            val options = when {
+                                isRetail -> retailCustomerOptions
+                                isService -> serviceDestinationOptions
+                                else -> fnbTableOptions
                             }
-                        }
-
-                        // Service Duration Summary Header
-                        if (isService && totalDurationMinutes > 0) {
-                            Spacer(Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(GreenSoft)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.Schedule, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "Estimasi Pengerjaan: $totalDurationMinutes Menit",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = GreenDeep,
-                                    fontWeight = FontWeight.Bold
+                            options.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        vm.setTable(option)
+                                        tableMenuOpen = false
+                                    }
                                 )
                             }
                         }
+                    }
 
-                        Spacer(Modifier.height(14.dp))
+                    // Service Duration Summary Header
+                    if (isService && totalDurationMinutes > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(GreenSoft)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Schedule, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Estimasi Pengerjaan: ${formatDurationMinutes(totalDurationMinutes)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GreenDeep,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
-                        if (cart.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(260.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Belum ada item di keranjang", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 380.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(cart, key = { it.product.id }) { item ->
-                                    CartItemRow(
-                                        item = item,
-                                        isServiceMode = isService,
-                                        onIncrement = { vm.increment(item.product.id) },
-                                        onDecrement = { vm.decrement(item.product.id) },
-                                        onRemove = { vm.removeFromCart(item.product.id) },
-                                        onEditNote = { activeNoteItem = item }
-                                    )
-                                }
+                    Spacer(Modifier.height(10.dp))
+
+                    if (cart.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Belum ada item di keranjang", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(cart, key = { it.product.id }) { item ->
+                                CartItemRow(
+                                    item = item,
+                                    onIncrement = { vm.increment(item.product.id) },
+                                    onDecrement = { vm.decrement(item.product.id) },
+                                    onRemove = { vm.removeFromCart(item.product.id) },
+                                    onEditNote = { activeNoteItem = item },
+                                    isService = isService
+                                )
                             }
                         }
                     }
@@ -349,49 +364,49 @@ fun POSScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 10.dp)
+                            .padding(top = 8.dp)
                     ) {
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Subtotal", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
                             Text(formatRupiah(vm.cartSubtotal), style = MaterialTheme.typography.bodyMedium, color = Ink)
                         }
 
-                        if (discount > 0) {
+                        if (vm.cartDiscount > 0) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Diskon", style = MaterialTheme.typography.bodyMedium, color = Danger)
-                                Text("-" + formatRupiah(discount), style = MaterialTheme.typography.bodyMedium, color = Danger)
+                                Text("-" + formatRupiah(vm.cartDiscount), style = MaterialTheme.typography.bodyMedium, color = Danger)
                             }
                         }
 
                         if (vm.cartTax > 0) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Pajak (${vm.receiptSettings.value.taxPercentage}%)", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                                Text("Pajak (${receiptSettings.taxPercentage}%)", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
                                 Text(formatRupiah(vm.cartTax), style = MaterialTheme.typography.bodyMedium, color = Ink)
                             }
                         }
 
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Total", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                             Text(formatRupiah(vm.cartTotal), style = MaterialTheme.typography.headlineSmall, color = GreenDeep, fontWeight = FontWeight.Bold)
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(10.dp))
 
                         Button(
                             onClick = onCheckout,
                             enabled = cart.isNotEmpty(),
                             colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp)
+                                .height(48.dp)
                         ) {
-                            Text("Bayar " + formatRupiah(vm.cartTotal), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Bayar " + formatRupiah(vm.cartTotal), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }
@@ -412,51 +427,44 @@ fun POSScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(GreenDeep),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("🍃", fontSize = 20.sp)
-                }
-                Spacer(Modifier.width(10.dp))
+                DaunPOSLogoMark(size = if (compactPhone) 36.dp else 42.dp)
+                Spacer(Modifier.width(if (compactPhone) 6.dp else 10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("DaunPOS", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
                     Text(cashier, style = MaterialTheme.typography.labelSmall, color = InkSoft)
                 }
 
-                // Adaptive Destination Selector
                 AdaptiveDestinationBadge(
                     category = category,
                     selectedTable = selectedTable,
-                    onOpenFnbDropdown = { tableMenuOpen = true },
-                    onOpenStaffDialog = { showStaffDialog = true }
+                    onOpenDropdown = { tableMenuOpen = true },
+                    compact = compactPhone
                 )
 
-                if (!isService) {
-                    DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
-                        val options = if (isRetail) retailCustomerOptions else fnbTableOptions
-                        options.forEach { opt ->
-                            DropdownMenuItem(
-                                text = { Text(opt) },
-                                onClick = {
-                                    vm.setTable(opt)
-                                    tableMenuOpen = false
-                                }
-                            )
-                        }
+                DropdownMenu(expanded = tableMenuOpen, onDismissRequest = { tableMenuOpen = false }) {
+                    val options = when {
+                        isRetail -> retailCustomerOptions
+                        isService -> serviceDestinationOptions
+                        else -> fnbTableOptions
+                    }
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                vm.setTable(option)
+                                tableMenuOpen = false
+                            }
+                        )
                     }
                 }
 
                 Spacer(Modifier.width(8.dp))
 
-                IconButton(onClick = onPrinterSettings) {
+                IconButton(onClick = onPrinterSettings, modifier = Modifier.size(if (compactPhone) 40.dp else 48.dp)) {
                     Icon(
                         Icons.Filled.Print,
                         contentDescription = "Printer",
-                        tint = if (bluetooth.connected) Green else Danger,
+                        tint = if (bluetooth.connected) GreenDeep else InkSoft,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -512,118 +520,153 @@ fun POSScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(filtered, key = { it.id }) { product ->
-                            ProductMenuCard(product = product, onClick = { vm.addToCart(product) })
+                            ProductMenuCard(
+                                product = product,
+                                onClick = { vm.addToCart(product) },
+                                trackStock = !isService
+                            )
                         }
                     }
                 }
             }
 
-            // Cart Bottom Panel
+            // Compact cart launcher stays clear of the bottom navigation.
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
                 color = Color.White,
-                shadowElevation = 8.dp,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                shadowElevation = 4.dp,
+                shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
             ) {
-                if (cart.isEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("🛒", fontSize = 22.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Keranjang kosong", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
-                        Spacer(Modifier.weight(1f))
-                        Button(
-                            onClick = {},
-                            enabled = false,
-                            colors = ButtonDefaults.buttonColors(disabledContainerColor = GreenSoft),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text("Bayar " + formatRupiah(0), color = GreenDeep, fontWeight = FontWeight.Bold)
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (cart.isEmpty()) "Keranjang kosong" else "${cart.sumOf { it.quantity }} item · $selectedTable",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = InkSoft
+                        )
+                        Text(
+                            formatRupiah(vm.cartTotal),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Ink,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                } else {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Pesanan (${cart.sumOf { it.quantity }} item) · $selectedTable",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Ink,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (isService && totalDurationMinutes > 0) {
-                                Text("⏱ $totalDurationMinutes mnt", style = MaterialTheme.typography.labelSmall, color = GreenDeep, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            cart.forEach { item ->
-                                CartItemRow(
-                                    item = item,
-                                    isServiceMode = isService,
-                                    onIncrement = { vm.increment(item.product.id) },
-                                    onDecrement = { vm.decrement(item.product.id) },
-                                    onRemove = { vm.removeFromCart(item.product.id) },
-                                    onEditNote = { activeNoteItem = item }
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text("Total", style = MaterialTheme.typography.labelMedium, color = InkSoft)
-                                Text(formatRupiah(vm.cartTotal), style = MaterialTheme.typography.headlineSmall, color = GreenDeep, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Button(
-                                onClick = onCheckout,
-                                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.height(52.dp)
-                            ) {
-                                Text("Bayar " + formatRupiah(vm.cartTotal), fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
-                        }
+                    Button(
+                        onClick = { showCartSheet = true },
+                        enabled = cart.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenDeep,
+                            contentColor = Color.White,
+                            disabledContainerColor = GreenSoft,
+                            disabledContentColor = InkSoft
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(if (cart.isEmpty()) "Kosong" else "Lihat Keranjang", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
     }
 
-    // Dialog: Staff Selection (Service Mode)
-    if (showStaffDialog) {
-        StaffSelectionDialog(
-            currentStaff = selectedTable,
-            staffList = staffList,
-            onDismiss = { showStaffDialog = false },
-            onSelectStaff = { staff ->
-                vm.setTable(staff)
-                showStaffDialog = false
-            },
-            onAddNewStaff = { newName ->
-                vm.addStaff(newName)
+    if (showCartSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCartSheet = false },
+            sheetState = cartSheetState,
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Tinjau Pesanan", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+                        Text("${cart.sumOf { it.quantity }} item · $selectedTable", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                    }
+                    if (isService && totalDurationMinutes > 0) {
+                        Text(formatDurationMinutes(totalDurationMinutes), style = MaterialTheme.typography.labelMedium, color = GreenDeep, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                cart.forEach { item ->
+                    CartItemRow(
+                        item = item,
+                        onIncrement = { vm.increment(item.product.id) },
+                        onDecrement = { vm.decrement(item.product.id) },
+                        onRemove = { vm.removeFromCart(item.product.id) },
+                        onEditNote = { activeNoteItem = item },
+                        isService = isService
+                    )
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Subtotal", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+                    Text(formatRupiah(vm.cartSubtotal), color = Ink, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (vm.cartDiscount > 0) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Diskon", color = Danger, style = MaterialTheme.typography.bodyMedium)
+                        Text("-${formatRupiah(vm.cartDiscount)}", color = Danger, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (vm.cartTax > 0) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Pajak (${receiptSettings.taxPercentage}%)", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+                        Text(formatRupiah(vm.cartTax), color = Ink, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Total", color = Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(formatRupiah(vm.cartTotal), color = GreenDeep, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = {
+                        showCartSheet = false
+                        onCheckout()
+                    },
+                    enabled = cart.isNotEmpty() && vm.cartTotal > 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GreenDeep,
+                        contentColor = Color.White,
+                        disabledContainerColor = GreenSoft,
+                        disabledContentColor = InkSoft
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text("Lanjut ke Pembayaran", fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(8.dp))
             }
-        )
+        }
     }
 
-    // Dialog: Cart Item Note & Custom Staff
+    // Personal-use checkout keeps order notes without employee assignment.
     activeNoteItem?.let { item ->
         ItemNoteDialog(
             item = item,
-            staffList = staffList,
+            isService = isService,
             onDismiss = { activeNoteItem = null },
-            onSave = { note, staff ->
-                vm.updateItemNote(item.product.id, note)
-                vm.updateItemStaff(item.product.id, staff)
-            }
+            onSave = { note -> vm.updateItemNote(item.product.id, note) }
         )
     }
 }
@@ -632,35 +675,39 @@ fun POSScreen(
 private fun AdaptiveDestinationBadge(
     category: BusinessCategory,
     selectedTable: String,
-    onOpenFnbDropdown: () -> Unit,
-    onOpenStaffDialog: () -> Unit
+    onOpenDropdown: () -> Unit,
+    compact: Boolean = false
 ) {
-    val isService = category == BusinessCategory.SERVICE
-    val isRetail = category == BusinessCategory.RETAIL
-
-    val (icon, label) = when {
-        isService -> Pair(
-            Icons.Filled.Badge,
-            if (selectedTable.startsWith("Staf:")) selectedTable else "Staf: $selectedTable"
-        )
-        isRetail -> Pair(Icons.Filled.Storefront, selectedTable)
-        else -> Pair(Icons.Filled.TableRestaurant, selectedTable)
+    val icon = when (category) {
+        BusinessCategory.SERVICE -> Icons.Filled.Schedule
+        BusinessCategory.RETAIL -> Icons.Filled.Storefront
+        BusinessCategory.FNB -> Icons.Filled.TableRestaurant
     }
+    val label = if (category == BusinessCategory.SERVICE && selectedTable == "Take Away") {
+        "Layanan"
+    } else {
+        selectedTable
+    }
+    val displayLabel = if (compact) {
+        when (label) {
+            "Pelanggan Umum" -> "Umum"
+            "Online / Kurir" -> "Online"
+            else -> label
+        }
+    } else label
 
     Box {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
                 .background(GreenSoft)
-                .clickable {
-                    if (isService) onOpenStaffDialog() else onOpenFnbDropdown()
-                }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .clickable(onClick = onOpenDropdown)
+                .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = GreenDeep, fontWeight = FontWeight.Bold)
+            Icon(icon, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(if (compact) 14.dp else 16.dp))
+            Spacer(Modifier.width(if (compact) 4.dp else 6.dp))
+            Text(displayLabel, style = MaterialTheme.typography.labelMedium, color = GreenDeep, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -730,11 +777,11 @@ private fun BarcodeInputBar(
 @Composable
 private fun CartItemRow(
     item: CartItem,
-    isServiceMode: Boolean = false,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     onRemove: () -> Unit,
-    onEditNote: () -> Unit
+    onEditNote: () -> Unit,
+    isService: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -751,9 +798,10 @@ private fun CartItemRow(
                 Text(item.product.name, style = MaterialTheme.typography.bodyMedium, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(formatRupiah(item.product.price), style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    Text("/ ${item.product.unitLabel}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     if (item.product.durationMinutes > 0) {
                         Spacer(Modifier.width(6.dp))
-                        Text("⏱ ${item.product.durationMinutes} mnt", style = MaterialTheme.typography.labelSmall, color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                        Text("· ${formatDurationMinutes(item.product.durationMinutes)}", style = MaterialTheme.typography.labelSmall, color = GreenDeep, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -769,10 +817,11 @@ private fun CartItemRow(
                     Icon(Icons.Filled.Remove, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(16.dp))
                 }
                 Text(
-                    item.quantity.toString(),
+                    "${item.quantity} ${item.product.unitLabel}",
                     modifier = Modifier.padding(horizontal = 8.dp),
                     style = MaterialTheme.typography.titleSmall,
-                    color = Ink
+                    color = Ink,
+                    maxLines = 1
                 )
                 Box(
                     modifier = Modifier
@@ -786,230 +835,91 @@ private fun CartItemRow(
                 }
             }
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onEditNote, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.EditNote,
-                    contentDescription = "Catatan",
-                    tint = if (item.note.isNotBlank() || item.staffName.isNotBlank()) GreenDeep else InkSoft,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
             IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Hapus", tint = InkSoft, modifier = Modifier.size(16.dp))
             }
         }
 
-        if (item.note.isNotBlank() || item.staffName.isNotBlank()) {
-            Row(
+        TextButton(
+            onClick = onEditNote,
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp)
+        ) {
+            Icon(
+                Icons.Filled.EditNote,
+                contentDescription = null,
+                tint = if (item.note.isNotBlank()) GreenDeep else InkSoft,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                when {
+                    item.note.isNotBlank() -> "Ubah catatan"
+                    isService -> "Tambah catatan / permintaan pelanggan"
+                    else -> "Tambah catatan"
+                },
+                color = if (item.note.isNotBlank()) GreenDeep else InkSoft,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+
+        if (item.note.isNotBlank()) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 30.dp, top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 30.dp, top = 2.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFF1F3F5))
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
-                if (item.staffName.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(GreenSoft)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("👤 ${item.staffName}", fontSize = 10.sp, color = GreenDeep, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                if (item.note.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFF1F3F5))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("📝 ${item.note}", fontSize = 10.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+                Text(
+                    "Catatan: ${item.note}",
+                    fontSize = 10.sp,
+                    color = Ink,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
 }
 
 @Composable
-fun StaffSelectionDialog(
-    currentStaff: String,
-    staffList: List<StoreStaff>,
-    onDismiss: () -> Unit,
-    onSelectStaff: (String) -> Unit,
-    onAddNewStaff: (String) -> Unit
-) {
-    var newStaffInput by remember { mutableStateOf("") }
-    val cleanedCurrent = if (currentStaff.startsWith("Staf:")) currentStaff.substringAfter(":").trim() else currentStaff
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pilih Staf / Pelaksana", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "Pilih staf yang bertugas untuk pesanan ini (misal: Fotografer, Stylist, Teknisi, dll.)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSoft
-                )
-
-                // Option: Umum
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onSelectStaff("Staf: Umum") },
-                    color = if (cleanedCurrent.equals("Umum", ignoreCase = true)) GreenSoft else Color(0xFFF8F9FA),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (cleanedCurrent.equals("Umum", ignoreCase = true)) Green else Line)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Person, contentDescription = null, tint = GreenDeep)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Staf Umum / Bersama", fontWeight = FontWeight.SemiBold, color = Ink)
-                    }
-                }
-
-                // Existing staff
-                staffList.forEach { staff ->
-                    val selected = cleanedCurrent.equals(staff.name, ignoreCase = true)
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelectStaff("Staf: ${staff.name}") },
-                        color = if (selected) GreenSoft else Color(0xFFF8F9FA),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) Green else Line)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.Badge, contentDescription = null, tint = GreenDeep)
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text(staff.name, fontWeight = FontWeight.SemiBold, color = Ink)
-                                Text("Peran: ${staff.role}", fontSize = 11.sp, color = InkSoft)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(6.dp))
-                Text("Tambah Staf Baru", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Ink)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newStaffInput,
-                        onValueChange = { newStaffInput = it },
-                        placeholder = { Text("Nama staf / petugas...") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (newStaffInput.isNotBlank()) {
-                                onAddNewStaff(newStaffInput.trim())
-                                onDismiss()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = GreenDeep),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("+")
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Tutup")
-            }
-        }
-    )
-}
-
-@Composable
 fun ItemNoteDialog(
     item: CartItem,
-    staffList: List<StoreStaff>,
+    isService: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (note: String, staff: String) -> Unit
+    onSave: (note: String) -> Unit
 ) {
-    var note by remember { mutableStateOf(item.note) }
-    var selectedStaff by remember { mutableStateOf(item.staffName) }
+    var note by remember(item.product.id) { mutableStateOf(item.note) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Catatan Layanan: ${item.product.name}", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        title = {
+            Text(
+                (if (isService) "Catatan Layanan: " else "Catatan Item: ") + item.product.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Keterangan / Request Khusus") },
-                    placeholder = { Text("Contoh: Background Navy, 5 Orang, Ganti LCD...") },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                if (staffList.isNotEmpty()) {
-                    Text("Pilih Staf Khusus untuk Item Ini (Opsional):", style = MaterialTheme.typography.labelMedium, color = InkSoft)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val isNone = selectedStaff.isBlank()
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (isNone) GreenDeep else Color.White)
-                                .border(1.dp, if (isNone) GreenDeep else Line, RoundedCornerShape(50))
-                                .clickable { selectedStaff = "" }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("Sesuai Pesanan", color = if (isNone) Color.White else Ink, fontSize = 11.sp)
-                        }
-
-                        staffList.forEach { s ->
-                            val isMatch = selectedStaff == s.name
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (isMatch) GreenDeep else Color.White)
-                                    .border(1.dp, if (isMatch) GreenDeep else Line, RoundedCornerShape(50))
-                                    .clickable { selectedStaff = s.name }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(s.name, color = if (isMatch) Color.White else Ink, fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text(if (isService) "Permintaan pelanggan (opsional)" else "Catatan pesanan (opsional)") },
+                placeholder = {
+                    Text(
+                        if (isService) "Contoh: model potongan, warna, ukuran, kondisi barang, atau instruksi khusus..."
+                        else "Contoh: tanpa gula, warna hitam, layanan ekspres..."
+                    )
+                },
+                maxLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(note.trim(), selectedStaff.trim())
+                    onSave(note.trim())
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Green)

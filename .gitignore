@@ -1,23 +1,91 @@
-# Gradle
+# ====================================================================
+# Android & Gradle Build Artifacts
+# ====================================================================
 .gradle/
 build/
-.kotlin/
-
-# Android
+*/build/
 app/build/
+.kotlin/
+bin/
+gen/
+out/
+release/
+
+# Binary Packages
 *.apk
 *.aab
+*.ap_
+*.dex
+*.class
 
-# Local config
-local.properties
+# Native / CXX / Profiling
+.externalNativeBuild/
+.cxx/
+captures/
 
-# Secrets — jangan pernah commit keystore / kredensial
+# ====================================================================
+# Keystore, Signing & Private Keys (JANGAN PERNAH COMMIT KE GITHUB)
+# ====================================================================
 keystore/
 *.jks
 *.keystore
-.env
+*.key
+*.pem
+*.p8
+*.p12
+*.bks
+*.der
+*.cer
+*.crt
+*.pkcs12
+key.properties
+signing.properties
+keystore.properties
 
-# IDE
+# ====================================================================
+# Secrets, Environment & API Credentials
+# ====================================================================
+local.properties
+.env
+.env.*
+*.env
+secrets.properties
+secure.properties
+google-services.json
+play-services.json
+credentials.json
+client_secret*.json
+service-account*.json
+
+# ====================================================================
+# IDE & Tooling
+# ====================================================================
 .idea/
 *.iml
+*.ipr
+*.iws
+.vscode/
+.kiro/
+*.swp
+*~
+
+# ====================================================================
+# OS Generated Files
+# ====================================================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ====================================================================
+# Logs, Crash Dumps & Scratch Dumps
+# ====================================================================
+*.log
+hs_err_pid*
+replay_pid*
+design/audit/*.xml
+design/audit/**/*.xml

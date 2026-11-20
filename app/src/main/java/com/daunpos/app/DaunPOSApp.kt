@@ -23,6 +23,7 @@ import com.daunpos.app.ui.screens.TransactionDetailScreen
 fun DaunPOSApp(vm: DaunPOSViewModel) {
     val navController = rememberNavController()
     val isOnboarded by vm.isOnboardingCompleted.collectAsState()
+    val storeProfile by vm.storeProfile.collectAsState()
     val startDest = if (isOnboarded) "login" else "onboarding_splash"
 
     NavHost(navController = navController, startDestination = startDest) {
@@ -39,7 +40,7 @@ fun DaunPOSApp(vm: DaunPOSViewModel) {
 
         composable("onboarding_category") {
             BusinessCategoryScreen(
-                initialCategory = vm.storeProfile.value.businessCategory,
+                initialCategory = storeProfile.businessCategory,
                 onBack = {
                     if (navController.previousBackStackEntry != null) {
                         navController.popBackStack()
@@ -98,7 +99,7 @@ fun DaunPOSApp(vm: DaunPOSViewModel) {
                 vm = vm,
                 onBack = { navController.popBackStack() },
                 onSuccess = { id ->
-                    navController.navigate("success/$id") {
+                    navController.navigate(AppRoutes.success(id)) {
                         popUpTo("main") { inclusive = false }
                     }
                 }

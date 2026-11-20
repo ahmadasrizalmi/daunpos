@@ -19,7 +19,9 @@ fun ProductEntity.toDomain(): Product = Product(
     durationMinutes = durationMinutes,
     emoji = emoji,
     colorHex = colorHex,
-    imageUrl = imageUrl
+    imageUrl = imageUrl,
+    description = description,
+    unitLabel = unitLabel
 )
 
 fun Product.toEntity(): ProductEntity = ProductEntity(
@@ -34,7 +36,9 @@ fun Product.toEntity(): ProductEntity = ProductEntity(
     durationMinutes = durationMinutes,
     emoji = emoji,
     colorHex = colorHex,
-    imageUrl = imageUrl
+    imageUrl = imageUrl,
+    description = description,
+    unitLabel = unitLabel
 )
 
 fun StoreProfileEntity.toDomain(): StoreProfile = StoreProfile(
@@ -59,7 +63,7 @@ fun StoreProfile.toEntity(): StoreProfileEntity = StoreProfileEntity(
     staticQrisRaw = staticQris,
     merchantNmid = "",
     isMultiUserEnabled = isMultiUserEnabled,
-    isAutoVerificationEnabled = true,
+    isAutoVerificationEnabled = false,
     isOnboardingCompleted = isOnboardingCompleted
 )
 
@@ -119,7 +123,11 @@ fun TransactionEntity.toDomain(): Transaction {
                 quantity = obj.getInt("quantity"),
                 emoji = obj.optString("emoji", "🍽️"),
                 note = obj.optString("note", ""),
-                staffName = obj.optString("staffName", "")
+                staffName = obj.optString("staffName", ""),
+                costPrice = if (obj.has("costPrice") && !obj.isNull("costPrice")) obj.optInt("costPrice").takeIf { it >= 0 } else null,
+                unitLabel = obj.optString("unitLabel", "unit"),
+                description = obj.optString("description", ""),
+                durationMinutes = obj.optInt("durationMinutes", 0).coerceAtLeast(0)
             )
         }
     }.getOrDefault(emptyList())
@@ -153,6 +161,10 @@ fun Transaction.toEntity(): TransactionEntity {
                 put("emoji", item.emoji)
                 put("note", item.note)
                 put("staffName", item.staffName)
+                put("unitLabel", item.unitLabel)
+                put("description", item.description)
+                put("durationMinutes", item.durationMinutes)
+                if (item.costPrice == null) put("costPrice", org.json.JSONObject.NULL) else put("costPrice", item.costPrice)
             }
         )
     }

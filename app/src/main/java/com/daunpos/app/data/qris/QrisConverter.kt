@@ -1,9 +1,18 @@
 package com.daunpos.app.data.qris
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
 import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.BitMatrix
+import com.google.zxing.common.GlobalHistogramBinarizer
+import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.util.Locale
@@ -25,6 +34,14 @@ data class QrisMerchantInfo(
     val rawPayload: String = ""
 )
 
+data class QrisValidationResult(
+    val isValid: Boolean,
+    val errors: List<String> = emptyList(),
+    val merchantName: String = "",
+    val city: String = "",
+    val nmid: String = ""
+)
+
 object QrisConverter {
 
     /**
@@ -37,7 +54,18 @@ object QrisConverter {
     const val DEFAULT_SAMPLE_STATIC_QRIS = DEMO_SAMPLE_STATIC_QRIS
 
     /**
-     * Menghitung Checksum CRC16-CCITT standar Bank Indonesia (Polinom 0x1021, Init 0xFFFF).
+     * Tag EMVCo yang dikelola/dibersihkan secara otomatis saat konversi ke QRIS Dinamis.
+     * Mengikuti spesifikasi BITS-QRIS-Converter & EMVCo:
+     * - Tag 54: Transaction Amount
+     * - Tag 55: Tip / Convenience Indicator (wajib dihapus jika dinamis, agar tidak bentrok dengan tip prompt)
+     * - Tag 56: Convenience Fee Fixed
+     * - Tag 57: Convenience Fee Percentage
+     * - Tag 63: Checksum CRC16
+     */
+    private val MANAGED_TAGS = setOf("54", "55", "56", "57", "63")
+
+    /**
+     * Menghitung Checksum CRC16-CCITT standar Bank Indonesia & EMVCo (Polinom 0x1021, Init 0xFFFF).
      */
     fun calculateCrc16(data: String): String {
         var crc = 0xFFFF
@@ -58,17 +86,42 @@ object QrisConverter {
     }
 
     /**
+     * Membersihkan dan memperbaiki malformasi umum pada string QRIS input,
+     * seperti kasus di mana Tag 59 (Nama Merchant) kelebihan 1 karakter panjang
+     * sehingga menelan digit '6' pertama dari Tag 60 (Kota Merchant e.g. "5909DNAPHOTO6010YOGYAKARTA").
+     */
+    fun sanitizeRawQris(raw: String): String {
+        var clean = raw.trim().replace("[\r\n\t]+".toRegex(), "")
+        // Deteksi Tag 59 menelan digit '6' dari Tag 60:
+        // Pola: 59(Length)(Nama)6(0)(LengthKota)(Kota)
+        val tag59CorruptedRegex = Regex("59(\\d{2})([A-Za-z0-9 ]+?)6(0\\d{2}[A-Za-z ]+)")
+        val match = tag59CorruptedRegex.find(clean)
+        if (match != null) {
+            val declaredLen = match.groupValues[1].toIntOrNull() ?: 0
+            val name = match.groupValues[2]
+            val rest = match.groupValues[3]
+            if (declaredLen == name.length + 1 && rest.startsWith("0")) {
+                val fixedTag59 = "59" + name.length.toString().padStart(2, '0') + name
+                val fixedTag60 = "6" + rest
+                clean = clean.substring(0, match.range.first) + fixedTag59 + fixedTag60 + clean.substring(match.range.last + 1)
+            }
+        }
+        return clean
+    }
+
+    /**
      * Mem-parsing string QRIS menjadi daftar komponen TLV (Tag-Length-Value).
      */
     fun parseTlvs(raw: String): List<QrisTlv> {
+        val sanitized = sanitizeRawQris(raw)
         val tlvs = mutableListOf<QrisTlv>()
         var index = 0
-        while (index + 4 <= raw.length) {
-            val tag = raw.substring(index, index + 2)
-            val lengthStr = raw.substring(index + 2, index + 4)
+        while (index + 4 <= sanitized.length) {
+            val tag = sanitized.substring(index, index + 2)
+            val lengthStr = sanitized.substring(index + 2, index + 4)
             val length = lengthStr.toIntOrNull() ?: break
-            if (index + 4 + length > raw.length) break
-            val value = raw.substring(index + 4, index + 4 + length)
+            if (index + 4 + length > sanitized.length) break
+            val value = sanitized.substring(index + 4, index + 4 + length)
             tlvs.add(QrisTlv(tag, length, value))
             index += 4 + length
         }
@@ -76,70 +129,160 @@ object QrisConverter {
     }
 
     /**
-     * Mengonversi string QRIS Statis menjadi QRIS Dinamis dengan nominal belanja terkunci.
-     *
-     * Langkah:
-     * 1. Ubah Tag 01 (Point of Initiation Method) dari '11' (statis) menjadi '12' (dinamis).
-     * 2. Sisipkan/perbarui Tag 54 (Transaction Amount) dengan nominal Rupiah.
-     * 3. Pastikan Tag 53 ('360' IDR) dan Tag 58 ('ID') tersedia.
-     * 4. Hitung ulang Checksum CRC16-CCITT (Tag 63).
+     * Memvalidasi struktur QRIS sesuai standar EMVCo & ASPI:
+     * - Awalan 000201
+     * - Checksum CRC16 (Tag 63)
+     * - 8 Tag wajib: 00, 01, 52, 53, 58, 59, 60, 63
+     * - Informasi akun merchant (Tag 26..51)
      */
-    fun convertStaticToDynamic(staticQris: String, amount: Int): String {
+    fun validateQris(raw: String): QrisValidationResult {
+        val clean = raw.trim().replace("[\r\n\t]+".toRegex(), "")
+        if (clean.isBlank()) {
+            return QrisValidationResult(false, listOf("String QRIS kosong"))
+        }
+        if (!clean.startsWith("000201")) {
+            return QrisValidationResult(false, listOf("QRIS harus diawali dengan '000201'"))
+        }
+        if (clean.length < 20) {
+            return QrisValidationResult(false, listOf("String QRIS terlalu pendek"))
+        }
+
+        val errors = mutableListOf<String>()
+        val tlvs = parseTlvs(clean)
+        if (tlvs.isEmpty()) {
+            return QrisValidationResult(false, listOf("Gagal mengurai struktur TLV QRIS"))
+        }
+
+        // Validasi CRC16
+        val crcTlv = tlvs.find { it.tag == "63" }
+        if (crcTlv != null && clean.contains("6304")) {
+            val withoutCrc = clean.substring(0, clean.lastIndexOf("6304") + 4)
+            val expectedCrc = calculateCrc16(withoutCrc)
+            if (!expectedCrc.equals(crcTlv.value, ignoreCase = true)) {
+                errors.add("CRC tidak cocok: dihitung $expectedCrc, tertera ${crcTlv.value}")
+            }
+        } else {
+            errors.add("Tag 63 (CRC) tidak ditemukan")
+        }
+
+        val presentTags = tlvs.map { it.tag }.toSet()
+        val requiredTags = listOf(
+            "00" to "Payload Format Indicator",
+            "01" to "Point of Initiation Method",
+            "52" to "Merchant Category Code",
+            "53" to "Transaction Currency",
+            "58" to "Country Code",
+            "59" to "Merchant Name",
+            "60" to "Merchant City",
+            "63" to "CRC"
+        )
+        for ((tag, name) in requiredTags) {
+            if (!presentTags.contains(tag)) {
+                errors.add("Tag wajib $tag ($name) tidak ditemukan")
+            }
+        }
+
+        // Cek info merchant (Tag 26..51)
+        val hasMerchantInfo = tlvs.any {
+            val num = it.tag.toIntOrNull() ?: 0
+            num in 26..51
+        }
+        if (!hasMerchantInfo) {
+            errors.add("Informasi akun merchant (Tag 26..51) tidak ditemukan")
+        }
+
+        val merchantInfo = parseMerchantInfo(clean)
+        return QrisValidationResult(
+            isValid = errors.isEmpty(),
+            errors = errors,
+            merchantName = merchantInfo.merchantName,
+            city = merchantInfo.city,
+            nmid = merchantInfo.nmid
+        )
+    }
+
+    /**
+     * Mengonversi string QRIS Statis menjadi QRIS Dinamis dengan nominal belanja terkunci.
+     * Mengikuti arsitektur TLV presisi BITS-QRIS-Converter:
+     * 1. Bersihkan karakter non-ASCII dan whitespace.
+     * 2. Bersihkan tag kelolaan: Tag 54, Tag 55, Tag 56, Tag 57, Tag 63.
+     * 3. Ubah Tag 01 dari '11' (statis) menjadi '12' (dinamis).
+     * 4. Pastikan Tag 53 ('360' IDR) tersedia sebelum Tag 58.
+     * 5. Sisipkan Tag 54 (Transaction Amount) tepat sebelum Tag 58 (Country Code).
+     * 6. Pastikan Tag 58 ('ID') dan Tag 60 (Merchant City) terjamin ada.
+     * 7. Hitung ulang Checksum CRC16-CCITT (Tag 63).
+     */
+    fun convertStaticToDynamic(staticQris: String, amount: Int, fallbackCity: String = "INDONESIA"): String {
         val clean = staticQris.trim().replace("[\r\n\t]+".toRegex(), "")
         if (clean.isBlank() || clean.length < 10) return clean
 
-        val tlvs = parseTlvs(clean).toMutableList()
+        val tlvs = parseTlvs(clean)
         if (tlvs.isEmpty()) return clean
 
-        // 1. Tag 01: Point of Initiation Method
-        // Menjaga Tag 01 tetap '11' (atau nilai bawaan QRIS statis merchant).
-        // Sesuai standar ASPI/EMVCo, Tag 01=11 yang disertai Tag 54 (Transaction Amount)
-        // didukung luas dan aman diproses oleh seluruh bank & e-wallet tanpa memerlukan Tag 28 URL.
-        val tag01Index = tlvs.indexOfFirst { it.tag == "01" }
-        if (tag01Index == -1) {
-            tlvs.add(0, QrisTlv("01", 2, "11"))
-        }
+        val result = mutableListOf<QrisTlv>()
+        var amountInserted = false
+        var hasTag53 = tlvs.any { it.tag == "53" }
+        var hasTag58 = tlvs.any { it.tag == "58" }
+        var hasTag60 = tlvs.any { it.tag == "60" }
 
-        // 2. Tag 53: Currency Code (360 = IDR)
-        if (tlvs.none { it.tag == "53" }) {
-            val insertPos = tlvs.indexOfFirst { it.tag > "53" }.let { if (it == -1) tlvs.size else it }
-            tlvs.add(insertPos, QrisTlv("53", 3, "360"))
-        }
-
-        // 3. Tag 54: Transaction Amount
         val amountStr = amount.coerceAtLeast(1).toString()
-        val tag54 = QrisTlv("54", amountStr.length, amountStr)
-        val tag54Index = tlvs.indexOfFirst { it.tag == "54" }
-        if (tag54Index != -1) {
-            tlvs[tag54Index] = tag54
-        } else {
-            val pos58 = tlvs.indexOfFirst { it.tag >= "58" }
-            if (pos58 != -1) {
-                tlvs.add(pos58, tag54)
-            } else {
-                tlvs.add(tag54)
+
+        for (el in tlvs) {
+            // Hapus tag kelolaan lama (54, 55, 56, 57, 63)
+            if (MANAGED_TAGS.contains(el.tag)) continue
+
+            // 1. Tag 01: Set ke '12' (Dynamic QRIS)
+            if (el.tag == "01") {
+                result.add(QrisTlv("01", 2, "12"))
+                continue
+            }
+
+            // 2. Tag 53: Pastikan ada sebelum Tag 58
+            if (el.tag == "58" && !hasTag53) {
+                result.add(QrisTlv("53", 3, "360"))
+                hasTag53 = true
+            }
+
+            // 3. Tag 54: Sisipkan tepat sebelum Tag 58 (Country Code)
+            if (el.tag == "58" && !amountInserted) {
+                result.add(QrisTlv("54", amountStr.length, amountStr))
+                amountInserted = true
+            }
+
+            result.add(el)
+
+            // 4. Tag 60: Jika Tag 60 hilang di payload asli, sisipkan tepat setelah Tag 59
+            if (el.tag == "59" && !hasTag60) {
+                val city = fallbackCity.trim().ifBlank { "INDONESIA" }.uppercase(Locale.US)
+                result.add(QrisTlv("60", city.length, city))
+                hasTag60 = true
             }
         }
 
-        // 4. Tag 58: Country Code (ID)
-        if (tlvs.none { it.tag == "58" }) {
-            tlvs.add(QrisTlv("58", 2, "ID"))
+        // Fallback jika urutan tag non-standar
+        if (!amountInserted) {
+            result.add(QrisTlv("54", amountStr.length, amountStr))
+        }
+        if (!hasTag58) {
+            result.add(QrisTlv("58", 2, "ID"))
+        }
+        if (!hasTag60) {
+            val city = fallbackCity.trim().ifBlank { "INDONESIA" }.uppercase(Locale.US)
+            result.add(QrisTlv("60", city.length, city))
         }
 
-        // 5. Rekonstruksi string tanpa Tag 63
+        // Rekonstruksi string TLV tanpa Tag 63
         val sb = StringBuilder()
-        for (tlv in tlvs) {
-            if (tlv.tag != "63") {
-                sb.append(tlv.tag)
-                sb.append(tlv.length.toString().padStart(2, '0'))
-                sb.append(tlv.value)
-            }
+        for (tlv in result) {
+            sb.append(tlv.tag)
+            sb.append(tlv.length.toString().padStart(2, '0'))
+            sb.append(tlv.value)
         }
 
-        // 6. Tambahkan prefix Tag 63 panjang 04
+        // Tambahkan placeholder Tag 63 panjang 04
         sb.append("6304")
 
-        // 7. Hitung CRC16 baru
+        // Hitung CRC16-CCITT baru
         val newCrc = calculateCrc16(sb.toString())
         sb.append(newCrc)
 
@@ -204,10 +347,14 @@ object QrisConverter {
 
     /**
      * Merender payload QRIS menjadi Android Bitmap resolusi tajam via ZXing.
+     * Menggunakan setting standar industri (BITS-QRIS-Converter):
+     * - Modul Hitam Murni (#000000) & Putih Murni (#FFFFFF) untuk rasio kontras maksimal kamera bank.
+     * - Margin 2 modul solid (Quiet Zone) sesuai standar ISO/IEC 18004.
+     * - Error Correction Level M (15% pemulihan data).
      */
     fun generateQrBitmap(content: String, sizePx: Int = 512): Bitmap {
         val hints = mapOf(
-            EncodeHintType.MARGIN to 1,
+            EncodeHintType.MARGIN to 2,
             EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M
         )
         val bitMatrix: BitMatrix = QRCodeWriter().encode(
@@ -220,8 +367,8 @@ object QrisConverter {
         val width = bitMatrix.width
         val height = bitMatrix.height
         val pixels = IntArray(width * height)
-        val colorDark = 0xFF14251E.toInt() // Ink / Hijau Tua DaunPOS
-        val colorLight = 0xFFFFFFFF.toInt() // Putih Bersih
+        val colorDark = 0xFF000000.toInt() // Hitam Murni (#000000)
+        val colorLight = 0xFFFFFFFF.toInt() // Putih Murni (#FFFFFF)
 
         for (y in 0 until height) {
             val offset = y * width
@@ -233,5 +380,59 @@ object QrisConverter {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         return bitmap
+    }
+
+    /**
+     * Membaca dan mendekode QR code dari Android Bitmap secara 100% offline & lokal via ZXing.
+     */
+    fun decodeQrFromBitmap(bitmap: Bitmap): String? {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val source = RGBLuminanceSource(width, height, pixels)
+        val hints = mapOf(
+            DecodeHintType.TRY_HARDER to true,
+            DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)
+        )
+        // Percobaan 1: HybridBinarizer (optimal untuk kontras tinggi/normal)
+        try {
+            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
+            if (!result.text.isNullOrBlank()) return result.text
+        } catch (_: Exception) {}
+
+        // Percobaan 2: GlobalHistogramBinarizer (fallback untuk foto/kertas dengan bayangan/cahaya redup)
+        try {
+            val binaryBitmap = BinaryBitmap(GlobalHistogramBinarizer(source))
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
+            if (!result.text.isNullOrBlank()) return result.text
+        } catch (_: Exception) {}
+
+        return null
+    }
+
+    /**
+     * Membaca dan mendekode QR code dari Uri gambar (Galeri / Foto) dengan downsampling aman memori.
+     */
+    fun decodeQrFromUri(context: Context, uri: Uri): String? {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            val maxDim = maxOf(options.outWidth, options.outHeight)
+            var sampleSize = 1
+            while (maxDim / sampleSize > 1200) {
+                sampleSize *= 2
+            }
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return null
+            decodeQrFromBitmap(bitmap)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

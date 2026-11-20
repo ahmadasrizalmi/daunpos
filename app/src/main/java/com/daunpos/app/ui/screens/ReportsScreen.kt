@@ -1,5 +1,7 @@
 package com.daunpos.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,17 +53,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.Exporter
+import com.daunpos.app.data.ReportAnalytics
 import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.formatRupiah
-import com.daunpos.app.ui.components.StatusBadge
 import com.daunpos.app.ui.theme.Bg
-import com.daunpos.app.ui.theme.Green
 import com.daunpos.app.ui.theme.GreenDeep
 import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
-import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.isTablet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,32 +79,94 @@ fun ReportsScreen(
     onOpenDetail: (String) -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val transactions by vm.transactions.collectAsState()
+    val storeProfile by vm.storeProfile.collectAsState()
     var filter by remember { mutableStateOf("Hari Ini") }
     var exportMenu by remember { mutableStateOf(false) }
+    var exportFeedback by remember { mutableStateOf<String?>(null) }
+    var exportFeedbackIsError by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val now = Calendar.getInstance()
-    val filtered = transactions.filter { tx ->
-        val c = Calendar.getInstance().apply { timeInMillis = tx.dateTime }
+    val nowMillis = System.currentTimeMillis()
+    val periodStart = Calendar.getInstance().apply {
         when (filter) {
-            "Hari Ini" -> c.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) &&
-                c.get(Calendar.YEAR) == now.get(Calendar.YEAR)
-            "Minggu Ini" -> now.timeInMillis - tx.dateTime <= 7L * 24 * 60 * 60 * 1000
-            else -> now.timeInMillis - tx.dateTime <= 30L * 24 * 60 * 60 * 1000
+            "Hari Ini" -> Unit
+            "Minggu Ini" -> {
+                firstDayOfWeek = Calendar.MONDAY
+                set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+            }
+            else -> set(Calendar.DAY_OF_MONTH, 1)
+        }
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val filtered = transactions.filter { it.dateTime in periodStart..nowMillis }
+    val summary = remember(filtered) { ReportAnalytics.summarize(filtered) }
+    val totalRevenue = summary.revenue
+    val grossProfitLabel = summary.grossProfit?.let { formatRupiah(it) } ?: "Belum lengkap"
+    val txCount = summary.successfulTransactions
+    val itemsSold = summary.itemsSold.toString()
+    val itemLabel = storeProfile.businessCategory.itemLabel
+
+    val pdfSaveLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { destination ->
+        if (destination != null) {
+            scope.launch {
+                runCatching {
+                    val file = withContext(Dispatchers.IO) {
+                        Exporter.exportPdf(context, filtered, storeProfile.storeName, filter)
+                    }
+                    try {
+                        withContext(Dispatchers.IO) {
+                            Exporter.saveToUri(context, file, destination)
+                        }
+                    } finally {
+                        withContext(Dispatchers.IO) { file.delete() }
+                    }
+                }.onSuccess {
+                    exportFeedback = "PDF berhasil disimpan ke lokasi yang dipilih."
+                    exportFeedbackIsError = false
+                }.onFailure { error ->
+                    exportFeedback = error.message ?: "PDF gagal disimpan."
+                    exportFeedbackIsError = true
+                }
+            }
         }
     }
 
-    val totalRevenue = filtered.filter { it.status == "SUKSES" }.sumOf { it.total }
-    val txCount = filtered.size
-    val itemsSold = filtered.flatMap { it.items }.sumOf { it.quantity }
-    val bestSeller = filtered.flatMap { it.items }
-        .groupBy { it.name }
-        .maxByOrNull { it.value.sumOf { i -> i.quantity } }
-        ?.key ?: "-"
+    val csvSaveLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { destination ->
+        if (destination != null) {
+            scope.launch {
+                runCatching {
+                    val file = withContext(Dispatchers.IO) {
+                        Exporter.exportCsv(context, filtered)
+                    }
+                    try {
+                        withContext(Dispatchers.IO) {
+                            Exporter.saveToUri(context, file, destination)
+                        }
+                    } finally {
+                        withContext(Dispatchers.IO) { file.delete() }
+                    }
+                }.onSuccess {
+                    exportFeedback = "CSV berhasil disimpan dan dapat dibuka dengan Excel."
+                    exportFeedbackIsError = false
+                }.onFailure { error ->
+                    exportFeedback = error.message ?: "CSV gagal disimpan."
+                    exportFeedbackIsError = true
+                }
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -117,7 +180,7 @@ fun ReportsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Laporan Penjualan", style = MaterialTheme.typography.headlineSmall, color = Ink, fontWeight = FontWeight.Bold)
-                    Text("Kafe Daun · Pantau performa bisnis harian", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                    Text("Ringkasan omzet dan profit usaha", style = MaterialTheme.typography.bodySmall, color = InkSoft)
                 }
                 Box {
                     IconButton(onClick = { exportMenu = true }) {
@@ -128,27 +191,69 @@ fun ReportsScreen(
                         onDismissRequest = { exportMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Unduh PDF Laporan") },
+                            text = { Text("Simpan PDF ke perangkat") },
+                            onClick = {
+                                exportMenu = false
+                                exportFeedback = null
+                                val timestamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+                                pdfSaveLauncher.launch("DaunPOS-Laporan-$timestamp.pdf")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Bagikan PDF") },
                             onClick = {
                                 exportMenu = false
                                 scope.launch {
-                                    val file = withContext(Dispatchers.IO) { Exporter.exportPdf(context, filtered) }
-                                    Exporter.shareFile(context, file, "application/pdf")
+                                    runCatching {
+                                        val file = withContext(Dispatchers.IO) {
+                                            Exporter.exportPdf(context, filtered, storeProfile.storeName, filter)
+                                        }
+                                        Exporter.shareFile(context, file, "application/pdf")
+                                    }.onFailure { error ->
+                                        exportFeedback = error.message ?: "PDF gagal dibuat."
+                                        exportFeedbackIsError = true
+                                    }
                                 }
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Unduh CSV (Excel)") },
+                            text = { Text("Simpan CSV ke perangkat") },
+                            onClick = {
+                                exportMenu = false
+                                exportFeedback = null
+                                val timestamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+                                csvSaveLauncher.launch("DaunPOS-Laporan-$timestamp.csv")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Bagikan CSV") },
                             onClick = {
                                 exportMenu = false
                                 scope.launch {
-                                    val file = withContext(Dispatchers.IO) { Exporter.exportCsv(context, filtered) }
-                                    Exporter.shareFile(context, file, "text/csv")
+                                    runCatching {
+                                        val file = withContext(Dispatchers.IO) {
+                                            Exporter.exportCsv(context, filtered)
+                                        }
+                                        Exporter.shareFile(context, file, "text/csv")
+                                    }.onFailure { error ->
+                                        exportFeedback = error.message ?: "CSV gagal dibuat."
+                                        exportFeedbackIsError = true
+                                    }
                                 }
                             }
                         )
                     }
                 }
+            }
+        }
+
+        exportFeedback?.let { message ->
+            item {
+                Text(
+                    message,
+                    color = if (exportFeedbackIsError) com.daunpos.app.ui.theme.Danger else GreenDeep,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
 
@@ -179,24 +284,46 @@ fun ReportsScreen(
             }
         }
 
-        // Summary cards: 4 cards in a row for tablet, 2x2 for phone
+        // Core business KPIs: omzet, gross profit, transactions, and units sold.
         item {
             if (isTablet) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    MetricCard("Total Pendapatan", formatRupiah(totalRevenue), "💰", Modifier.weight(1f))
-                    MetricCard("Jumlah Transaksi", "$txCount order", "🧾", Modifier.weight(1f))
-                    MetricCard("Item Terjual", "$itemsSold porsi", "📦", Modifier.weight(1f))
-                    MetricCard("Menu Terlaris", bestSeller, "⭐", Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MetricCard("Omzet", formatRupiah(totalRevenue), "Rp", Modifier.weight(1f))
+                    MetricCard("Profit Kotor", grossProfitLabel, "↗", Modifier.weight(1f))
+                    MetricCard("Transaksi", txCount.toString(), "#", Modifier.weight(1f))
+                    MetricCard("$itemLabel Terjual", itemsSold, "▦", Modifier.weight(1f))
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricCard("Total Pendapatan", formatRupiah(totalRevenue), "💰", Modifier.weight(1f))
-                        MetricCard("Transaksi", txCount.toString(), "🧾", Modifier.weight(1f))
+                        MetricCard("Omzet", formatRupiah(totalRevenue), "Rp", Modifier.weight(1f))
+                        MetricCard("Profit Kotor", grossProfitLabel, "↗", Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricCard("Item Terjual", itemsSold.toString(), "📦", Modifier.weight(1f))
-                        MetricCard("Menu Terlaris", bestSeller, "⭐", Modifier.weight(1f))
+                        MetricCard("Transaksi", txCount.toString(), "#", Modifier.weight(1f))
+                        MetricCard("$itemLabel Terjual", itemsSold, "▦", Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        if (summary.transactionsWithoutCost > 0) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFFFF6E7))
+                        .border(1.dp, Color(0xFFE9D5A8), RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Profit belum dapat dihitung penuh", style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${summary.transactionsWithoutCost} transaksi lama belum memiliki snapshot harga modal (HPP). Transaksi baru akan menyimpan HPP saat checkout.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkSoft
+                        )
                     }
                 }
             }
@@ -267,43 +394,74 @@ private fun MetricCard(label: String, value: String, emoji: String, modifier: Mo
 
 @Composable
 private fun SalesBarChart(transactions: List<Transaction>) {
-    val grouped = transactions
-        .filter { it.status == "SUKSES" }
-        .groupBy { tx ->
-            val c = Calendar.getInstance().apply { timeInMillis = tx.dateTime }
-            c.get(Calendar.DAY_OF_MONTH)
-        }
-        .mapValues { it.value.sumOf { t -> t.total } }
-        .toSortedMap()
+    val buckets = remember(transactions) { ReportAnalytics.dailySales(transactions) }
 
-    val maxValue = (grouped.values.maxOrNull() ?: 0).coerceAtLeast(1)
-
-    if (grouped.isEmpty()) {
+    if (buckets.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(140.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Belum ada data grafik untuk periode ini.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+            Text(
+                "Belum ada data grafik untuk periode ini.",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSoft
+            )
         }
         return
     }
 
-    Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-        val gap = 14.dp.toPx()
-        val count = grouped.size.coerceAtLeast(1)
-        val barWidth = ((size.width - gap * (count - 1)) / count).coerceIn(16.dp.toPx(), 48.dp.toPx())
-        grouped.entries.forEachIndexed { index, entry ->
-            val barHeight = (entry.value.toFloat() / maxValue) * (size.height - 30.dp.toPx())
-            val x = index * (barWidth + gap)
-            val y = size.height - barHeight
-            drawRoundRect(
-                color = if (index % 2 == 0) Green else Mint,
-                topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-            )
+    val maxValue = buckets.maxOf { it.amount }.coerceAtLeast(1L)
+    val dateFormat = remember { SimpleDateFormat("dd MMM", Locale("id", "ID")) }
+    val dateLabels = listOfNotNull(
+        buckets.firstOrNull(),
+        buckets.getOrNull(buckets.size / 2).takeIf { buckets.size > 2 },
+        buckets.lastOrNull().takeIf { buckets.size > 1 }
+    ).distinctBy { it.dayStartMillis }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(142.dp)) {
+            val top = 8.dp.toPx()
+            val bottom = size.height - 6.dp.toPx()
+            val plotHeight = (bottom - top).coerceAtLeast(1f)
+
+            listOf(0.25f, 0.5f, 0.75f, 1f).forEach { fraction ->
+                val y = bottom - plotHeight * fraction
+                drawLine(
+                    color = Line,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+
+            val cellWidth = size.width / buckets.size
+            val barWidth = minOf(32.dp.toPx(), cellWidth * 0.56f).coerceAtLeast(5.dp.toPx())
+            buckets.forEachIndexed { index, bucket ->
+                val ratio = (bucket.amount.toDouble() / maxValue.toDouble()).toFloat()
+                val barHeight = (plotHeight * ratio).coerceAtLeast(4.dp.toPx())
+                val x = index * cellWidth + (cellWidth - barWidth) / 2f
+                drawRoundRect(
+                    color = GreenDeep,
+                    topLeft = Offset(x, bottom - barHeight),
+                    size = Size(barWidth, barHeight),
+                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            dateLabels.forEach { bucket ->
+                Text(
+                    dateFormat.format(Date(bucket.dayStartMillis)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = InkSoft
+                )
+            }
         }
     }
 }
@@ -311,7 +469,23 @@ private fun SalesBarChart(transactions: List<Transaction>) {
 @Composable
 private fun TransactionRow(tx: Transaction, onClick: () -> Unit) {
     val time = SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID")).format(Date(tx.dateTime))
-    val success = tx.status == "SUKSES"
+    val isSuccess = tx.status == "SUKSES"
+    val isCancelled = tx.status == "BATAL"
+    val statusLabel = when {
+        isSuccess -> "Sukses"
+        isCancelled -> "Batal"
+        else -> "Menunggu"
+    }
+    val statusBackground = when {
+        isSuccess -> GreenSoft
+        isCancelled -> Color(0xFFFBEAE7)
+        else -> Color(0xFFFFF4E5)
+    }
+    val statusForeground = when {
+        isSuccess -> GreenDeep
+        isCancelled -> com.daunpos.app.ui.theme.Danger
+        else -> Color(0xFF9A5B00)
+    }
 
     Row(
         modifier = Modifier
@@ -327,10 +501,19 @@ private fun TransactionRow(tx: Transaction, onClick: () -> Unit) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (success) GreenSoft else Color(0xFFFBEAE7)),
+                .background(statusBackground),
             contentAlignment = Alignment.Center
         ) {
-            Text(if (success) "✅" else "❌", fontSize = 18.sp)
+            Text(
+                when {
+                    isSuccess -> "✓"
+                    isCancelled -> "×"
+                    else -> "…"
+                },
+                color = statusForeground,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -352,7 +535,19 @@ private fun TransactionRow(tx: Transaction, onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.End) {
             Text(formatRupiah(tx.total), style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            StatusBadge(if (success) "Sukses" else "Batal", positive = success)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(statusBackground)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    statusLabel,
+                    color = statusForeground,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

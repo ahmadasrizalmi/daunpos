@@ -4,7 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.daunpos.app.data.CartItem
+import com.daunpos.app.data.BankAccountSettings
 import com.daunpos.app.data.BusinessCategory
+import com.daunpos.app.data.FinancialPolicy
+import com.daunpos.app.data.InventoryPolicy
+import com.daunpos.app.data.PaymentCompletionPolicy
 import com.daunpos.app.data.StoreProfile
 import com.daunpos.app.data.StoreStaff
 import com.daunpos.app.data.OrderItem
@@ -43,6 +47,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     val receiptSettings: StateFlow<ReceiptSettings> = repository.receiptSettings
     val staticQris: StateFlow<String> = repository.staticQris
+    val bankAccountSettings: StateFlow<BankAccountSettings> = repository.bankAccountSettings
     val isOnboardingCompleted: StateFlow<Boolean> = repository.isOnboardingCompleted
     val storeProfile: StateFlow<StoreProfile> = repository.storeProfile
     val staffList: StateFlow<List<StoreStaff>> =
@@ -57,22 +62,27 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         isMultiUser: Boolean,
         ownerPin: String,
         cashierPin: String? = null,
-        onDone: () -> Unit
+        onDone: () -> Unit,
+        onError: (String) -> Unit = {}
     ) {
         viewModelScope.launch {
-            repository.completeOnboarding(
-                name = name,
-                category = category,
-                address = address,
-                phone = phone,
-                staticQris = staticQris,
-                isMultiUser = isMultiUser,
-                ownerPin = ownerPin,
-                cashierPin = cashierPin
-            )
-            _currentUser.value = User("owner", UserRole.OWNER)
-            _cashier.value = "Pemilik"
-            onDone()
+            try {
+                repository.completeOnboarding(
+                    name = name,
+                    category = category,
+                    address = address,
+                    phone = phone,
+                    staticQris = staticQris,
+                    isMultiUser = isMultiUser,
+                    ownerPin = ownerPin,
+                    cashierPin = cashierPin
+                )
+                _currentUser.value = User("owner", UserRole.OWNER)
+                _cashier.value = "Pemilik"
+                onDone()
+            } catch (error: Exception) {
+                onError(error.message ?: "Pengaturan toko gagal disimpan.")
+            }
         }
     }
 
@@ -82,7 +92,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val _cashier = MutableStateFlow("Ayu · Kasir Pagi")
+    private val _cashier = MutableStateFlow("Kasir")
     val cashier: StateFlow<String> = _cashier.asStateFlow()
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
@@ -101,13 +111,20 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     val lastTransaction: StateFlow<Transaction?> = _lastTransaction.asStateFlow()
 
     val cartCount: Int get() = _cart.value.sumOf { it.quantity }
-    val cartSubtotal: Int get() = _cart.value.sumOf { it.product.price * it.quantity }
+    val cartSubtotal: Int
+        get() = _cart.value.sumOf { it.product.price.toLong() * it.quantity }
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val cartDiscount: Int
+        get() = FinancialPolicy.normalizeDiscount(_discount.value, cartSubtotal)
     val cartTax: Int
-        get() {
-            val taxable = (cartSubtotal - _discount.value).coerceAtLeast(0)
-            return (taxable * receiptSettings.value.taxPercentage) / 100
-        }
-    val cartTotal: Int get() = (cartSubtotal - _discount.value).coerceAtLeast(0) + cartTax
+        get() = FinancialPolicy.calculateTax(
+            subtotal = cartSubtotal,
+            discount = cartDiscount,
+            taxPercentage = receiptSettings.value.taxPercentage
+        )
+    val cartTotal: Int
+        get() = (cartSubtotal.toLong() - cartDiscount.toLong() + cartTax.toLong())
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
     init {
         // Sinkronkan status koneksi printer ke pengaturan tersimpan.
@@ -162,7 +179,7 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
         val user = repository.authenticate(username, pin)
         if (user != null) {
             _currentUser.value = user
-            _cashier.value = if (user.role == UserRole.OWNER) "Pemilik" else "Ayu · Kasir Pagi"
+            _cashier.value = user.displayName
         }
         user
     }
@@ -170,6 +187,17 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     suspend fun verifyOwnerPin(pin: String): Boolean = withContext(Dispatchers.Default) {
         repository.authenticate("owner", pin) != null
     }
+
+    suspend fun changeCurrentUserPin(newPin: String): Boolean = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext false
+        runCatching {
+            repository.changePin(user.username, newPin)
+            _currentUser.value = user.copy(requiresPinChange = false)
+        }.isSuccess
+    }
+
+    suspend fun getTransactionFromDatabase(id: String): Transaction? =
+        withContext(Dispatchers.IO) { repository.getTransaction(id) }
 
     fun logout() {
         _currentUser.value = null
@@ -182,17 +210,21 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setDiscount(amount: Int) {
-        _discount.value = amount
+        _discount.value = FinancialPolicy.normalizeDiscount(amount, cartSubtotal)
     }
 
     // ---------- Cart ----------
     fun addToCart(product: Product) {
-        if (!product.available || product.stock <= 0) return
+        val category = storeProfile.value.businessCategory
         _cart.update { current ->
             val existing = current.find { it.product.id == product.id }
-            if (existing != null) {
-                if (existing.quantity >= product.stock) current
-                else current.map { if (it.product.id == product.id) it.copy(quantity = it.quantity + 1) else it }
+            val quantityInCart = existing?.quantity ?: 0
+            if (!InventoryPolicy.canSell(product, category, quantityInCart)) {
+                current
+            } else if (existing != null) {
+                current.map {
+                    if (it.product.id == product.id) it.copy(quantity = it.quantity + 1) else it
+                }
             } else {
                 current + CartItem(product = product, quantity = 1)
             }
@@ -200,13 +232,17 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun increment(productId: String) {
-        val product = products.value.find { it.id == productId }
+        val product = products.value.find { it.id == productId } ?: return
+        val category = storeProfile.value.businessCategory
         _cart.update { current ->
-            current.map {
-                if (it.product.id == productId) {
-                    val max = product?.stock ?: 99
-                    if (it.quantity < max) it.copy(quantity = it.quantity + 1) else it
-                } else it
+            current.map { item ->
+                if (item.product.id == productId &&
+                    InventoryPolicy.canSell(product, category, item.quantity)
+                ) {
+                    item.copy(quantity = item.quantity + 1)
+                } else {
+                    item
+                }
             }
         }
     }
@@ -275,7 +311,10 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     // ---------- Products ----------
     fun toggleProductAvailable(productId: String) {
-        viewModelScope.launch { repository.toggleProductAvailable(productId) }
+        val trackStock = InventoryPolicy.tracksStock(storeProfile.value.businessCategory)
+        viewModelScope.launch {
+            repository.toggleProductAvailable(productId, trackStock)
+        }
     }
 
     fun upsertProduct(product: Product) {
@@ -292,53 +331,96 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ---------- Transactions ----------
-    fun checkout(paymentMethod: PaymentMethod, cashReceived: Int?, tableNumber: String = _selectedTable.value, note: String = ""): String {
-        val items = _cart.value.map {
+    fun checkout(
+        paymentMethod: PaymentMethod,
+        cashReceived: Int?,
+        tableNumber: String = _selectedTable.value,
+        verifiedPaymentEvent: Boolean = false,
+        note: String = "",
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val cartSnapshot = _cart.value
+        if (cartSnapshot.isEmpty()) {
+            onError("Keranjang kosong. Tambahkan produk sebelum checkout.")
+            return
+        }
+
+        val subtotal = cartSnapshot.sumOf { it.product.price.toLong() * it.quantity }
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val discount = FinancialPolicy.normalizeDiscount(_discount.value, subtotal)
+        val tax = FinancialPolicy.calculateTax(subtotal, discount, receiptSettings.value.taxPercentage)
+        val total = (subtotal.toLong() - discount.toLong() + tax.toLong())
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
+        if (!PaymentCompletionPolicy.canComplete(paymentMethod, total, cashReceived, verifiedPaymentEvent)) {
+            onError(
+                when (paymentMethod) {
+                    PaymentMethod.CASH -> "Uang diterima belum mencukupi total pembayaran."
+                    PaymentMethod.QRIS, PaymentMethod.TRANSFER -> "Pembayaran belum terverifikasi. Transaksi belum disimpan."
+                }
+            )
+            return
+        }
+
+        val items = cartSnapshot.map { item ->
             OrderItem(
-                productId = it.product.id,
-                name = it.product.name,
-                price = it.product.price,
-                quantity = it.quantity,
-                emoji = it.product.emoji,
-                note = it.note,
-                staffName = it.staffName.ifBlank {
-                    if (_selectedTable.value.startsWith("Staf:")) _selectedTable.value.substringAfter(":").trim() else ""
+                productId = item.product.id,
+                name = item.product.name,
+                price = item.product.price,
+                quantity = item.quantity,
+                emoji = item.product.emoji,
+                note = item.note,
+                costPrice = item.product.costPrice,
+                unitLabel = item.product.unitLabel,
+                description = item.product.description,
+                durationMinutes = item.product.durationMinutes,
+                staffName = item.staffName.ifBlank {
+                    if (tableNumber.startsWith("Staf:")) tableNumber.substringAfter(":").trim() else ""
                 }
             )
         }
-        val id = repository.nextInvoiceNumber()
+
         val tx = Transaction(
-            id = id,
+            id = repository.nextInvoiceNumber(),
             dateTime = System.currentTimeMillis(),
             items = items,
-            subtotal = cartSubtotal,
-            discount = _discount.value,
-            tax = cartTax,
-            total = cartTotal,
+            subtotal = subtotal,
+            discount = discount,
+            tax = tax,
+            total = total,
             paymentMethod = paymentMethod,
-            cashReceived = cashReceived,
-            change = if (cashReceived != null) cashReceived - cartTotal else null,
-            status = "SUKSES",
+            cashReceived = if (paymentMethod == PaymentMethod.CASH) cashReceived else null,
+            change = if (paymentMethod == PaymentMethod.CASH && cashReceived != null) cashReceived - total else null,
+            status = PaymentCompletionPolicy.status(paymentMethod, total, cashReceived, verifiedPaymentEvent),
             note = note,
             tableNumber = tableNumber
         )
-        _lastTransaction.value = tx
-        viewModelScope.launch { repository.insertTransaction(tx) }
 
-        // Cetak otomatis bila diaktifkan dan printer terhubung.
-        if (receiptSettings.value.autoPrint && bluetoothState.value.connected) {
-            printReceipt(tx)
+        viewModelScope.launch {
+            try {
+                repository.insertTransaction(
+                    tx,
+                    trackStock = InventoryPolicy.tracksStock(storeProfile.value.businessCategory)
+                )
+                _lastTransaction.value = tx
+                if (receiptSettings.value.autoPrint && bluetoothState.value.connected) {
+                    printReceipt(tx)
+                }
+                clearCart()
+                onSuccess(tx.id)
+            } catch (error: Exception) {
+                onError(error.message ?: "Transaksi gagal disimpan. Keranjang tetap dipertahankan.")
+            }
         }
-
-        clearCart()
-        return tx.id
     }
 
     fun getTransaction(id: String): Transaction? =
         _lastTransaction.value?.takeIf { it.id == id } ?: transactions.value.find { it.id == id }
 
     fun cancelTransaction(id: String) {
-        viewModelScope.launch { repository.cancelTransaction(id) }
+        val restoreStock = InventoryPolicy.tracksStock(storeProfile.value.businessCategory)
+        viewModelScope.launch { repository.cancelTransaction(id, restoreStock) }
     }
 
     // ---------- QRIS Generator ----------
@@ -347,7 +429,8 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun generateDynamicQris(amount: Int): String {
-        return QrisConverter.convertStaticToDynamic(staticQris.value, amount)
+        val storeCity = storeProfile.value.address.split(",").lastOrNull()?.trim().orEmpty().ifBlank { "INDONESIA" }
+        return QrisConverter.convertStaticToDynamic(staticQris.value, amount, storeCity)
     }
 
     fun printQrisBill(amount: Int) {
@@ -380,6 +463,9 @@ class DaunPOSViewModel(application: Application) : AndroidViewModel(application)
 
     // ---------- Settings ----------
     fun updateReceiptSettings(settings: ReceiptSettings) = repository.updateReceiptSettings(settings)
+
+    fun updateBankAccountSettings(settings: BankAccountSettings) =
+        repository.updateBankAccountSettings(settings)
 
     // ---------- Printer ----------
     fun startBluetoothDiscovery() = printerManager.startDiscovery()

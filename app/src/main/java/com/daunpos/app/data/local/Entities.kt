@@ -11,12 +11,14 @@ data class ProductEntity(
     val price: Int,
     val costPrice: Int = 0,
     val available: Boolean,
-    val stock: Int = 50,
+    val stock: Int = 0,
     val barcodeSku: String = "",
     val durationMinutes: Int = 0,
     val emoji: String,
     val colorHex: Long,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val description: String = "",
+    val unitLabel: String = "unit"
 )
 
 @Entity(tableName = "store_profile")
@@ -27,11 +29,11 @@ data class StoreProfileEntity(
     val address: String,
     val phoneNumber: String,
     val logoUri: String? = null,
-    val taxPercentage: Int = 10,
+    val taxPercentage: Int = 0,
     val staticQrisRaw: String = "",
     val merchantNmid: String = "",
     val isMultiUserEnabled: Boolean = false,
-    val isAutoVerificationEnabled: Boolean = true,
+    val isAutoVerificationEnabled: Boolean = false,
     val isOnboardingCompleted: Boolean = false
 )
 

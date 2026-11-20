@@ -6,8 +6,10 @@ import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.PinHasher
 import com.daunpos.app.data.ReceiptSettings
 import com.daunpos.app.data.Transaction
+import com.daunpos.app.data.formatDurationMinutes
 import com.daunpos.app.printer.ThermalPrinter
 import com.daunpos.app.ui.receipt.ReceiptBuilder
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +52,12 @@ class POSLogicTest {
         org.junit.Assert.assertEquals("Dimas", txService.assignedStaff)
         org.junit.Assert.assertNull(txService.customerType)
 
+        val txServicePersonal = txFnb.copy(tableNumber = "Layanan")
+        org.junit.Assert.assertEquals("Layanan", txServicePersonal.destinationLabel)
+
+        val txTakeAway = txFnb.copy(tableNumber = "Take Away")
+        org.junit.Assert.assertEquals("Pesanan", txTakeAway.destinationLabel)
+
         val txRetail = txFnb.copy(tableNumber = "Pelanggan Umum")
         org.junit.Assert.assertEquals("Pelanggan", txRetail.destinationLabel)
         org.junit.Assert.assertEquals("Pelanggan Umum", txRetail.customerType)
@@ -90,7 +98,7 @@ class POSLogicTest {
     }
 
     @Test
-    fun testThermalPrinterCashDrawerPulseOnCash() {
+    fun testThermalPrinterNeverSendsCashDrawerPulse() {
         val txCash = Transaction(
             id = "#INV-0001",
             dateTime = System.currentTimeMillis(),
@@ -101,10 +109,10 @@ class POSLogicTest {
             tableNumber = "Meja 01"
         )
 
-        val settingsWithDrawer = ReceiptSettings(cashDrawer = true)
-        val bytesCash = ThermalPrinter.buildReceiptBytes(txCash, settingsWithDrawer)
+        val receiptSettings = ReceiptSettings()
+        val bytesCash = ThermalPrinter.buildReceiptBytes(txCash, receiptSettings)
 
-        // Verifikasi ada command ESC p (0x1B, 0x70)
+        // Cash-drawer pulse is intentionally disabled for the personal-use product scope.
         var hasDrawerCommand = false
         for (i in 0 until bytesCash.size - 1) {
             if (bytesCash[i] == 0x1B.toByte() && bytesCash[i + 1] == 0x70.toByte()) {
@@ -112,11 +120,11 @@ class POSLogicTest {
                 break
             }
         }
-        assertTrue(hasDrawerCommand)
+        assertFalse(hasDrawerCommand)
 
         // Jika QRIS, laci kasir tidak dibuka
         val txQris = txCash.copy(paymentMethod = PaymentMethod.QRIS)
-        val bytesQris = ThermalPrinter.buildReceiptBytes(txQris, settingsWithDrawer)
+        val bytesQris = ThermalPrinter.buildReceiptBytes(txQris, receiptSettings)
         var hasDrawerCommandQris = false
         for (i in 0 until bytesQris.size - 1) {
             if (bytesQris[i] == 0x1B.toByte() && bytesQris[i + 1] == 0x70.toByte()) {
@@ -161,6 +169,44 @@ class POSLogicTest {
         assertTrue(printerString.contains("Staf  : Dimas"))
         assertTrue(printerString.contains("Sesi Foto Wisuda"))
         assertTrue(printerString.contains("Background Navy"))
+    }
+
+    @Test
+    fun testServiceDetailsAndDurationArePreservedInReceipts() {
+        val item = OrderItem(
+            productId = "SVC-01",
+            name = "Potong Rambut",
+            price = 50000,
+            quantity = 2,
+            emoji = "✂️",
+            note = "Model fade",
+            unitLabel = "sesi",
+            description = "Cuci dan styling",
+            durationMinutes = 60
+        )
+        val tx = Transaction(
+            id = "TX-SVC-01",
+            dateTime = System.currentTimeMillis(),
+            items = listOf(item),
+            subtotal = 100000,
+            total = 100000,
+            paymentMethod = PaymentMethod.CASH,
+            tableNumber = "Pelanggan Umum"
+        )
+
+        val receipt = ReceiptBuilder.buildText(tx, ReceiptSettings())
+        assertTrue(receipt.contains("2 sesi x Rp 50.000"))
+        assertTrue(receipt.contains("Detail: Cuci dan styling"))
+        assertTrue(receipt.contains("Durasi: 1 jam per item"))
+        assertTrue(receipt.contains("Catatan: Model fade"))
+
+        val printer = String(ThermalPrinter.buildReceiptBytes(tx, ReceiptSettings()), Charsets.US_ASCII)
+        assertTrue(printer.contains("2 sesi"))
+        assertTrue(printer.contains("Durasi: 1 jam"))
+        assertTrue(printer.contains("Detail: Cuci dan styling"))
+        assertTrue(printer.contains("Ket : Model fade"))
+        assertEquals("2 jam 30 menit", formatDurationMinutes(150))
+        assertEquals("1 hari 2 jam", formatDurationMinutes(1560))
     }
 
     @Test

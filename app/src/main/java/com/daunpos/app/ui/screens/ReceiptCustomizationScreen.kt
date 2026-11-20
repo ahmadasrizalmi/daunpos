@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,7 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +51,8 @@ import com.daunpos.app.DaunPOSViewModel
 import com.daunpos.app.data.OrderItem
 import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.Transaction
+import com.daunpos.app.ui.components.InfoAction
+import com.daunpos.app.ui.components.InfoDialog
 import com.daunpos.app.ui.receipt.ReceiptPreview
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Green
@@ -58,6 +61,7 @@ import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.Ink
 import com.daunpos.app.ui.theme.InkSoft
 import com.daunpos.app.ui.theme.Line
+import com.daunpos.app.ui.theme.isTablet
 
 @Composable
 fun ReceiptCustomizationScreen(
@@ -65,44 +69,38 @@ fun ReceiptCustomizationScreen(
     onBack: () -> Unit
 ) {
     val config = LocalConfiguration.current
-    val isTablet = config.smallestScreenWidthDp >= 600
+    val isTablet = config.isTablet
 
     val settings by vm.receiptSettings.collectAsState()
 
-    var line1 by remember { mutableStateOf(settings.headerLines.getOrElse(0) { "DaunPOS Coffee & Eatery" }) }
-    var line2 by remember { mutableStateOf(settings.headerLines.getOrElse(1) { "Jl. Daun Hijau No. 8, Bandung" }) }
-    var line3 by remember { mutableStateOf(settings.headerLines.getOrElse(2) { "0812-3456-7890" }) }
+    var line1 by remember { mutableStateOf(settings.headerLines.getOrElse(0) { "Nama Toko" }) }
+    var line2 by remember { mutableStateOf(settings.headerLines.getOrElse(1) { "" }) }
+    var line3 by remember { mutableStateOf(settings.headerLines.getOrElse(2) { "" }) }
     var footer by remember { mutableStateOf(settings.footerText) }
     var showLogo by remember { mutableStateOf(settings.showLogo) }
-    var showQR by remember { mutableStateOf(settings.showQR) }
     var taxRate by remember { mutableStateOf(settings.taxPercentage) }
 
     val currentSettings = settings.copy(
         headerLines = listOf(line1, line2, line3).filter { it.isNotBlank() },
         footerText = footer,
         showLogo = showLogo,
-        showQR = showQR,
+        showQR = false,
         taxPercentage = taxRate
     )
 
     val sampleTx = remember {
         Transaction(
-            id = "#INV-0183",
+            id = "CONTOH",
             dateTime = System.currentTimeMillis(),
-            items = listOf(
-                OrderItem("P001", "Es Kopi Daun", 22000, 1, "☕"),
-                OrderItem("P003", "Cappuccino", 28000, 1, "🥛"),
-                OrderItem("P010", "Butter Croissant", 22000, 1, "🥐"),
-                OrderItem("P006", "Es Teh Manis", 12000, 1, "🧋")
-            ),
-            subtotal = 84000,
+            items = listOf(OrderItem("SAMPLE", "Produk Contoh", 10000, 1, "📦")),
+            subtotal = 10000,
             discount = 0,
             tax = 0,
-            total = 84000,
+            total = 10000,
             paymentMethod = PaymentMethod.CASH,
-            cashReceived = 100000,
-            change = 16000,
-            tableNumber = "Meja 04"
+            cashReceived = 10000,
+            change = 0,
+            tableNumber = "Take Away"
         )
     }
 
@@ -147,7 +145,6 @@ fun ReceiptCustomizationScreen(
                         line3 = line3, onLine3 = { line3 = it },
                         footer = footer, onFooter = { footer = it },
                         showLogo = showLogo, onShowLogo = { showLogo = it },
-                        showQR = showQR, onShowQR = { showQR = it },
                         taxRate = taxRate, onTaxRate = { taxRate = it }
                     )
 
@@ -187,6 +184,7 @@ fun ReceiptCustomizationScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -208,7 +206,6 @@ fun ReceiptCustomizationScreen(
                     line3 = line3, onLine3 = { line3 = it },
                     footer = footer, onFooter = { footer = it },
                     showLogo = showLogo, onShowLogo = { showLogo = it },
-                    showQR = showQR, onShowQR = { showQR = it },
                     taxRate = taxRate, onTaxRate = { taxRate = it }
                 )
 
@@ -235,9 +232,17 @@ private fun ReceiptFormContent(
     line3: String, onLine3: (String) -> Unit,
     footer: String, onFooter: (String) -> Unit,
     showLogo: Boolean, onShowLogo: (Boolean) -> Unit,
-    showQR: Boolean, onShowQR: (Boolean) -> Unit,
     taxRate: Int, onTaxRate: (Int) -> Unit
 ) {
+    var showTaxInfo by remember { mutableStateOf(false) }
+    if (showTaxInfo) {
+        InfoDialog(
+            title = "Perhitungan Pajak",
+            message = "Pajak dihitung dari subtotal setelah diskon. Atur tarif sesuai ketentuan pajak yang berlaku untuk usaha Anda.",
+            onDismiss = { showTaxInfo = false }
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Logo Card
         Box(
@@ -260,8 +265,8 @@ private fun ReceiptFormContent(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Logo Kafe di Struk", style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.SemiBold)
-                    Text("Tampilkan header logo di bagian atas", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    Text("Merek DaunPOS di Struk", style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text("Logo di struk", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                 }
                 Switch(
                     checked = showLogo,
@@ -339,38 +344,30 @@ private fun ReceiptFormContent(
                 .padding(16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Pajak & Fitur Tambahan", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
-
-                Text("Tarif Pajak (PPN)", style = MaterialTheme.typography.labelMedium, color = InkSoft)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0 to "Tanpa PPN (0%)", 10 to "10%", 11 to "11%").forEach { (rate, label) ->
-                        val active = taxRate == rate
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (active) GreenSoft else Bg)
-                                .border(1.5.dp, if (active) Green else Line, RoundedCornerShape(10.dp))
-                                .clickable { onTaxRate(rate) }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(label, style = MaterialTheme.typography.labelSmall, color = if (active) GreenDeep else Ink, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("QR Struk Digital", style = MaterialTheme.typography.bodyMedium, color = Ink, fontWeight = FontWeight.SemiBold)
-                        Text("Cetak kode QR struk di bawah struk", style = MaterialTheme.typography.labelSmall, color = InkSoft)
-                    }
-                    Switch(
-                        checked = showQR,
-                        onCheckedChange = onShowQR,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Green, uncheckedThumbColor = Color.White, uncheckedTrackColor = Line)
+                    Text(
+                        "Pajak",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Ink,
+                        fontWeight = FontWeight.Bold
                     )
+                    InfoAction(contentDescription = "Info pajak") {
+                        showTaxInfo = true
+                    }
                 }
+
+                OutlinedTextField(
+                    value = taxRate.toString(),
+                    onValueChange = { raw ->
+                        onTaxRate(raw.filter { it.isDigit() }.take(3).toIntOrNull()?.coerceIn(0, 100) ?: 0)
+                    },
+                    label = { Text("Tarif pajak (%)") },
+                    supportingText = { Text("Dihitung setelah diskon.") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
