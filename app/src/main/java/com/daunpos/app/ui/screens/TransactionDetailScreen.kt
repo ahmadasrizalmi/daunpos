@@ -1,7 +1,5 @@
 package com.daunpos.app.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,7 +25,7 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,9 +53,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.data.formatDurationMinutes
 import com.daunpos.app.ui.components.StatusBadge
 import com.daunpos.app.ui.receipt.ReceiptPreview
+import com.daunpos.app.ui.receipt.ReceiptSharing
 import com.daunpos.app.ui.receipt.buildReceiptText
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
@@ -85,22 +88,40 @@ fun TransactionDetailScreen(
     val transactions by vm.transactions.collectAsState()
     val lastTx by vm.lastTransaction.collectAsState()
     val settings by vm.receiptSettings.collectAsState()
+    val whatsappAvailable = remember(context) { ReceiptSharing.isWhatsAppAvailable(context) }
+    var databaseTx by remember(transactionId) { mutableStateOf<Transaction?>(null) }
+    var loadingTransaction by remember(transactionId) { mutableStateOf(true) }
+
+    LaunchedEffect(transactionId) {
+        databaseTx = runCatching { vm.getTransactionFromDatabase(transactionId) }.getOrNull()
+        loadingTransaction = false
+    }
+
     val tx = (if (lastTx?.id == transactionId) lastTx else null)
         ?: transactions.find { it.id == transactionId }
+        ?: databaseTx
 
     if (tx == null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Bg)
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Transaksi tidak ditemukan", style = MaterialTheme.typography.titleMedium, color = Ink)
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Green)) {
-                    Text("Kembali", fontWeight = FontWeight.Bold)
+                if (loadingTransaction) {
+                    androidx.compose.material3.CircularProgressIndicator(color = Green)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Memuat transaksi lokal…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                } else {
+                    Text("Transaksi tidak ditemukan", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = GreenDeep)) {
+                        Text("Kembali", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -114,11 +135,7 @@ fun TransactionDetailScreen(
     var pinError by remember { mutableStateOf<String?>(null) }
 
     fun shareWhatsApp() {
-        val text = buildReceiptText(tx, settings)
-        val sendIntent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("https://api.whatsapp.com/send?text=" + Uri.encode(text))
-        }
-        runCatching { context.startActivity(sendIntent) }
+        runCatching { ReceiptSharing.share(context, buildReceiptText(tx, settings)) }
     }
 
     Column(
@@ -126,6 +143,7 @@ fun TransactionDetailScreen(
             .fillMaxSize()
             .background(Bg)
             .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         // Top bar
         Row(
@@ -209,7 +227,7 @@ fun TransactionDetailScreen(
                                     Spacer(Modifier.width(10.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(item.name, style = MaterialTheme.typography.bodyMedium, color = Ink)
-                                        Text("${item.quantity} x ${formatRupiah(item.price)}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                        Text("${item.quantity} ${item.unitLabel} x ${formatRupiah(item.price)}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                                     }
                                     Text(formatRupiah(item.total), style = MaterialTheme.typography.bodyMedium, color = Ink, fontWeight = FontWeight.SemiBold)
                                 }
@@ -330,7 +348,16 @@ fun TransactionDetailScreen(
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(item.name, style = MaterialTheme.typography.bodyMedium, color = Ink)
-                                    Text("${item.quantity} x ${formatRupiah(item.price)}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                    Text("${item.quantity} ${item.unitLabel} x ${formatRupiah(item.price)}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                    if (item.description.isNotBlank()) {
+                                        Text(item.description, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                    }
+                                    if (item.durationMinutes > 0) {
+                                        Text("Durasi: ${formatDurationMinutes(item.durationMinutes)} per item", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                    }
+                                    if (item.note.isNotBlank()) {
+                                        Text("Catatan: ${item.note}", style = MaterialTheme.typography.labelSmall, color = GreenDeep)
+                                    }
                                 }
                                 Text(formatRupiah(item.total), style = MaterialTheme.typography.bodyMedium, color = Ink, fontWeight = FontWeight.SemiBold)
                             }
@@ -365,7 +392,7 @@ fun TransactionDetailScreen(
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                        Text(if (whatsappAvailable) "WhatsApp" else "Bagikan", color = GreenDeep, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -389,12 +416,12 @@ fun TransactionDetailScreen(
             title = { Text("Otorisasi Pemilik (Owner PIN)") },
             text = {
                 Column {
-                    Text("Pembatalan transaksi memerlukan verifikasi PIN pemilik (default: 0000).", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                    Text("Pembatalan transaksi memerlukan verifikasi PIN pemilik yang terdaftar.", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = ownerPin,
-                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) ownerPin = it },
-                        label = { Text("PIN Pemilik 4-Digit") },
+                        onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) ownerPin = it },
+                        label = { Text("PIN Pemilik (4–6 digit)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         singleLine = true,
                         isError = pinError != null

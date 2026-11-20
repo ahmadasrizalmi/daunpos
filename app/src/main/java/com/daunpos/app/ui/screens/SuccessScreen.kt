@@ -1,7 +1,5 @@
 package com.daunpos.app.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,7 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -51,8 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.formatRupiah
 import com.daunpos.app.ui.receipt.ReceiptPreview
+import com.daunpos.app.ui.receipt.ReceiptSharing
 import com.daunpos.app.ui.receipt.buildReceiptText
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Green
@@ -75,21 +76,46 @@ fun SuccessScreen(
     val transactions by vm.transactions.collectAsState()
     val lastTx by vm.lastTransaction.collectAsState()
     val settings by vm.receiptSettings.collectAsState()
+    val whatsappAvailable = remember(context) { ReceiptSharing.isWhatsAppAvailable(context) }
+    var databaseTx by remember(transactionId) { mutableStateOf<Transaction?>(null) }
+    var loadingReceipt by remember(transactionId) { mutableStateOf(true) }
+
+    LaunchedEffect(transactionId) {
+        databaseTx = runCatching { vm.getTransactionFromDatabase(transactionId) }.getOrNull()
+        loadingReceipt = false
+    }
+
     val tx = (if (lastTx?.id == transactionId) lastTx else null)
         ?: transactions.find { it.id == transactionId }
+        ?: databaseTx
 
     if (tx == null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Bg)
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = Green)
-                Spacer(Modifier.height(16.dp))
-                Text("Menyiapkan struk transaksi…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                if (loadingReceipt) {
+                    CircularProgressIndicator(color = Green)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Memuat struk dari database…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                } else {
+                    Text("Struk belum tersedia", style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Transaksi $transactionId tidak ditemukan di penyimpanan lokal. Jangan membuat transaksi pengganti sebelum memeriksa riwayat.", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                    Spacer(Modifier.height(18.dp))
+                    Button(
+                        onClick = onNewTransaction,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenDeep, contentColor = Color.White)
+                    ) {
+                        Text("Kembali ke Kasir")
+                    }
+                }
             }
         }
         return
@@ -104,11 +130,7 @@ fun SuccessScreen(
     LaunchedEffect(Unit) { scale = 1f }
 
     fun shareWhatsApp() {
-        val text = buildReceiptText(tx, settings)
-        val sendIntent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("https://api.whatsapp.com/send?text=" + Uri.encode(text))
-        }
-        runCatching { context.startActivity(sendIntent) }
+        runCatching { ReceiptSharing.share(context, buildReceiptText(tx, settings)) }
     }
 
     if (isTablet) {
@@ -183,7 +205,7 @@ fun SuccessScreen(
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Kirim WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                        Text(if (whatsappAvailable) "WhatsApp" else "Bagikan", color = GreenDeep, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -216,6 +238,7 @@ fun SuccessScreen(
                 .fillMaxSize()
                 .background(Bg)
                 .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -279,7 +302,7 @@ fun SuccessScreen(
                     shape = RoundedCornerShape(14.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Green)
                 ) {
-                    Text("WhatsApp", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+                    Text(if (whatsappAvailable) "WhatsApp" else "Bagikan", color = GreenDeep, fontWeight = FontWeight.SemiBold)
                 }
             }
 

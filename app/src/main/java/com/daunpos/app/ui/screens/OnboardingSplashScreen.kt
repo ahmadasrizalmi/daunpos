@@ -1,13 +1,13 @@
 package com.daunpos.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,270 +16,208 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PointOfSale
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.daunpos.app.ui.components.DaunPOSLogoMark
+import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.GreenDeep
-import com.daunpos.app.ui.theme.Ink
+import com.daunpos.app.ui.theme.GreenSoft
 import com.daunpos.app.ui.theme.InkSoft
-import com.daunpos.app.ui.theme.Mint
+import com.daunpos.app.ui.theme.Line
 
 @Composable
 fun OnboardingSplashScreen(
     onStartSetup: () -> Unit,
     onLoginClick: () -> Unit
 ) {
-    val scrollState = rememberScrollState()
-
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF143D2D),
-                        Color(0xFF1F5C43),
-                        Color(0xFF184936)
-                    )
-                )
-            )
-            .statusBarsPadding()
-            .navigationBarsPadding()
+            .background(Bg)
     ) {
+        val compact = maxHeight < 700.dp || maxWidth < 360.dp
+        val logoSize = if (compact) 112.dp else 138.dp
+        val outerPadding = if (compact) 12.dp else 20.dp
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .align(Alignment.Center)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = outerPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Center
         ) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Glowing Leaf Logo Badge
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF2C7457))
-                        .border(2.dp, Mint.copy(alpha = 0.5f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Spa,
-                        contentDescription = "DaunPOS Logo",
-                        tint = Mint,
-                        modifier = Modifier.size(46.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
+                DaunPOSLogoMark(size = logoSize)
+                Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
                 Text(
                     text = "DaunPOS",
-                    fontSize = 32.sp,
+                    color = GreenDeep,
+                    fontSize = if (compact) 31.sp else 36.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    letterSpacing = 1.sp
+                    textAlign = TextAlign.Center
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
+                Spacer(Modifier.height(3.dp))
                 Text(
-                    text = "Satu Aplikasi Kasir Pintar untuk Semua Jenis Usaha",
-                    fontSize = 15.sp,
+                    text = "Kasir praktis untuk usaha Anda",
+                    color = InkSoft,
+                    fontSize = if (compact) 13.sp else 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Mint.copy(alpha = 0.9f),
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    textAlign = TextAlign.Center
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Category Chips
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CategoryPill("☕ Kuliner F&B")
-                    CategoryPill("🛍️ Retail Toko")
-                    CategoryPill("✂️ Jasa & Salon")
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Feature Highlights Card
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    FeatureRow(
-                        icon = Icons.Filled.QrCode2,
-                        title = "QRIS Dinamis Mandiri",
-                        desc = "Ubah QRIS kertas BCA/Dana/GoPay jadi QRIS dinamis otomatis tanpa potongan MDR gateway."
-                    )
-                    FeatureRow(
-                        icon = Icons.Filled.NotificationsActive,
-                        title = "Auto-Verifikasi Notifikasi Bank",
-                        desc = "Sistem membaca notifikasi uang masuk dari bank untuk validasi transaksi instan."
-                    )
-                    FeatureRow(
-                        icon = Icons.Filled.Print,
-                        title = "Printer Thermal Bluetooth 58/80mm",
-                        desc = "Cetak struk kasir, slip dapur, QRIS payment, dan buka laci kasir otomatis."
-                    )
-                    FeatureRow(
-                        icon = Icons.Filled.Security,
-                        title = "100% Offline-First & Mandiri",
-                        desc = "Data tersimpan aman di perangkat Anda tanpa biaya sewa server bulanan."
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(Modifier.height(if (compact) 24.dp else 36.dp))
 
-            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FeatureItem(
+                    icon = Icons.Filled.PointOfSale,
+                    label = "Transaksi",
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(34.dp)
+                        .background(Line)
+                )
+                FeatureItem(
+                    icon = Icons.Filled.Inventory2,
+                    label = "Stok",
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(34.dp)
+                        .background(Line)
+                )
+                FeatureItem(
+                    icon = Icons.Filled.BarChart,
+                    label = "Laporan",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(if (compact) 28.dp else 44.dp))
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(11.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Button(
                     onClick = onStartSetup,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Mint,
-                        contentColor = GreenDeep
+                        containerColor = GreenDeep,
+                        contentColor = Color.White
                     ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "Mulai Setup Toko Baru",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Lanjut",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.Storefront,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Mulai Setup Toko",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                Text(
-                    text = "Sudah pernah setup? Masuk dengan PIN",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.85f),
+                OutlinedButton(
+                    onClick = onLoginClick,
                     modifier = Modifier
-                        .clickable { onLoginClick() }
-                        .padding(vertical = 8.dp, horizontal = 16.dp)
-                )
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.3.dp, GreenDeep),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GreenDeep)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Masuk dengan PIN",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CategoryPill(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(30.dp))
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(30.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White
-        )
-    }
-}
-
-@Composable
-private fun FeatureRow(
-    icon: ImageVector,
-    title: String,
-    desc: String
+private fun FeatureItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
+    Column(
+        modifier = modifier.padding(horizontal = 3.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Mint.copy(alpha = 0.18f)),
+                .size(48.dp)
+                .background(GreenSoft, RoundedCornerShape(15.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Mint,
-                modifier = Modifier.size(20.dp)
+                tint = GreenDeep,
+                modifier = Modifier.size(25.dp)
             )
         }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = desc,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.75f),
-                lineHeight = 16.sp
-            )
-        }
+        Text(
+            text = label,
+            color = GreenDeep,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
     }
 }

@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -21,7 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +50,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.daunpos.app.data.Product
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.data.formatDurationMinutes
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
 import com.daunpos.app.ui.theme.DangerSoft
@@ -129,9 +133,10 @@ fun ProductEmoji(
 fun ProductMenuCard(
     product: Product,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trackStock: Boolean = true
 ) {
-    val outOfStock = !product.available || product.stock <= 0
+    val outOfStock = !product.available || (trackStock && product.stock <= 0)
 
     Box(
         modifier = modifier
@@ -167,7 +172,7 @@ fun ProductMenuCard(
                             )
                         }
                     }
-                } else if (product.stock <= 10) {
+                } else if (trackStock && product.stock <= 10) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -189,7 +194,7 @@ fun ProductMenuCard(
                             .background(Color(0xD9102A1E))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text("⏱ ${product.durationMinutes} mnt", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text("⏱ ${formatDurationMinutes(product.durationMinutes)}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -217,6 +222,15 @@ fun ProductMenuCard(
                 overflow = TextOverflow.Ellipsis,
                 minLines = 2
             )
+            if (product.description.isNotBlank()) {
+                Text(
+                    product.description,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = InkSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             Spacer(Modifier.height(6.dp))
 
@@ -226,7 +240,7 @@ fun ProductMenuCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    formatRupiah(product.price),
+                    "${formatRupiah(product.price)} / ${product.unitLabel}",
                     style = MaterialTheme.typography.titleSmall,
                     color = GreenDeep,
                     fontWeight = FontWeight.Bold
@@ -287,12 +301,14 @@ fun QrisTutorialDialog(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 520.dp)
                 .padding(8.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .heightIn(max = 680.dp)
+                    .padding(18.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 Row(
@@ -348,14 +364,14 @@ fun QrisTutorialDialog(
                 // Cara 3
                 TutorialStepItem(
                     number = "3",
-                    title = "Mode Uji Coba / Demo",
-                    desc = "Jika belum memiliki stiker QRIS resmi, Anda dapat menekan tombol 'Pakai Demo' untuk langsung mencoba transaksi dan mencetak struk QRIS dinamis di kasir.",
+                    title = "Belum memiliki QRIS?",
+                    desc = "Jika belum memiliki QRIS merchant, kosongkan kolom ini. Pembayaran tunai dan transfer tetap dapat digunakan; metode QRIS baru aktif setelah kode merchant yang valid disimpan.",
                     isRecommended = false
                 )
 
                 Spacer(Modifier.height(18.dp))
 
-                Button(
+                DaunPOSButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(46.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = GreenDeep, contentColor = Color.White),
@@ -395,23 +411,82 @@ private fun TutorialStepItem(
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Ink)
-                    if (isRecommended) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GreenDeep)
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("Rekomendasi", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink
+                )
+                if (isRecommended) {
+                    Spacer(Modifier.height(5.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GreenDeep)
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            "Rekomendasi",
+                            fontSize = 9.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(desc, style = MaterialTheme.typography.bodySmall, color = InkSoft, lineHeight = 17.sp)
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    desc,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSoft,
+                    lineHeight = 18.sp
+                )
             }
         }
     }
+}
+
+@Composable
+fun InfoAction(
+    contentDescription: String = "Informasi",
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+            contentDescription = contentDescription,
+            tint = InkSoft
+        )
+    }
+}
+
+@Composable
+fun InfoDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Ink
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = InkSoft
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Mengerti", color = GreenDeep, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        containerColor = Color.White
+    )
 }

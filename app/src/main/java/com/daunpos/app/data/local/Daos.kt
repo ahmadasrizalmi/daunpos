@@ -14,14 +14,20 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY name")
     suspend fun getAll(): List<ProductEntity>
 
+    @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): ProductEntity?
+
     @Upsert
     suspend fun upsert(product: ProductEntity)
 
     @Query("DELETE FROM products WHERE id = :id")
     suspend fun deleteById(id: String)
 
-    @Query("UPDATE products SET stock = stock - :quantity WHERE id = :id AND stock >= :quantity")
+    @Query("UPDATE products SET stock = stock - :quantity WHERE id = :id AND available = 1 AND stock >= :quantity")
     suspend fun deductStock(id: String, quantity: Int): Int
+
+    @Query("UPDATE products SET stock = stock + :quantity WHERE id = :id")
+    suspend fun restoreStock(id: String, quantity: Int): Int
 
     @Query("UPDATE products SET available = :available WHERE id = :id")
     suspend fun setAvailable(id: String, available: Boolean)
@@ -37,6 +43,9 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY dateTime DESC")
     suspend fun getAll(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): TransactionEntity?
 
     @Insert
     suspend fun insert(transaction: TransactionEntity)
@@ -55,6 +64,9 @@ interface UserDao {
 
     @Insert
     suspend fun insert(user: UserEntity)
+
+    @Upsert
+    suspend fun upsert(user: UserEntity)
 
     @Query("DELETE FROM users WHERE username = :username")
     suspend fun deleteByUsername(username: String)

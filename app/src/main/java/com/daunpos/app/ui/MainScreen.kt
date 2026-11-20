@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,8 +22,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.RestaurantMenu
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -45,7 +47,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.daunpos.app.AppRoutes
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.ui.components.DaunPOSLogoMark
 import com.daunpos.app.ui.screens.MenuManagementScreen
 import com.daunpos.app.ui.screens.POSScreen
 import com.daunpos.app.ui.screens.PrinterSettingsScreen
@@ -83,6 +87,13 @@ fun MainScreen(
     var selected by remember { mutableStateOf(0) }
     val bluetooth by vm.bluetoothState.collectAsState()
     val cashier by vm.cashier.collectAsState()
+    val storeProfile by vm.storeProfile.collectAsState()
+    val itemTabLabel = storeProfile.businessCategory.itemLabel
+    val itemTabIcon = when (storeProfile.businessCategory) {
+        com.daunpos.app.data.BusinessCategory.FNB -> Icons.Filled.RestaurantMenu
+        com.daunpos.app.data.BusinessCategory.RETAIL -> Icons.Filled.Storefront
+        com.daunpos.app.data.BusinessCategory.SERVICE -> Icons.Filled.ContentCut
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -103,15 +114,7 @@ fun MainScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable { selected = 0 }
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(GreenDeep),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Spa, contentDescription = null, tint = Mint, modifier = Modifier.size(20.dp))
-                        }
+                        DaunPOSLogoMark(size = 42.dp)
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text("DaunPOS", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
@@ -134,14 +137,14 @@ fun MainScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        tab.icon,
-                                        contentDescription = tab.label,
+                                        if (index == 2) itemTabIcon else tab.icon,
+                                        contentDescription = if (index == 2) itemTabLabel else tab.label,
                                         tint = if (active) GreenDeep else InkSoft,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        tab.label,
+                                        if (index == 2) itemTabLabel else tab.label,
                                         style = MaterialTheme.typography.titleSmall,
                                         color = if (active) GreenDeep else InkSoft,
                                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
@@ -157,8 +160,8 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(if (bluetooth.connected) GreenSoft else Color(0xFFFBEAE7))
-                            .border(1.dp, if (bluetooth.connected) Green else Danger, RoundedCornerShape(50))
+                            .background(if (bluetooth.connected) GreenSoft else Color(0xFFF5F6F7))
+                            .border(1.dp, if (bluetooth.connected) Green else Line, RoundedCornerShape(50))
                             .clickable { selected = 3 }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
@@ -167,13 +170,13 @@ fun MainScreen(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(if (bluetooth.connected) GreenDeep else Danger)
+                                     .background(if (bluetooth.connected) GreenDeep else InkSoft)
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (bluetooth.connected) (bluetooth.deviceName.ifBlank { "RPP02N" } + " · Siap") else "Printer Terputus",
+                                if (bluetooth.connected) (bluetooth.deviceName.ifBlank { "RPP02N" } + " · Siap") else "Printer belum dihubungkan",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (bluetooth.connected) GreenDeep else Danger,
+                                color = if (bluetooth.connected) GreenDeep else InkSoft,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -203,16 +206,25 @@ fun MainScreen(
             if (!isTablet) {
                 NavigationBar(
                     containerColor = Color.White,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier.height(72.dp)
+                    tonalElevation = 2.dp
                 ) {
                     tabs.forEachIndexed { index, tab ->
                         val active = index == selected
                         NavigationBarItem(
                             selected = active,
                             onClick = { selected = index },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium) },
+                            icon = {
+                                Icon(
+                                    if (index == 2) itemTabIcon else tab.icon,
+                                    contentDescription = if (index == 2) itemTabLabel else tab.label
+                                )
+                            },
+                            label = {
+                                Text(
+                                    if (index == 2) itemTabLabel else tab.label,
+                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Color.White,
                                 selectedTextColor = GreenDeep,
@@ -230,6 +242,7 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
         ) {
             when (selected) {
                 0 -> POSScreen(
@@ -239,7 +252,7 @@ fun MainScreen(
                 )
                 1 -> ReportsScreen(
                     vm = vm,
-                    onOpenDetail = { id -> onNavigate("detail/$id") }
+                    onOpenDetail = { id -> onNavigate(AppRoutes.detail(id)) }
                 )
                 2 -> MenuManagementScreen(vm = vm)
                 3 -> PrinterSettingsScreen(

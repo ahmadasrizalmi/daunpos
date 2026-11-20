@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -48,7 +49,7 @@ import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -73,11 +74,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.data.BankAccountSettings
 import com.daunpos.app.data.qris.QrisConverter
+import com.daunpos.app.ui.components.InfoAction
+import com.daunpos.app.ui.components.InfoDialog
 import com.daunpos.app.ui.components.QrisTutorialDialog
 import com.daunpos.app.ui.components.StatusBadge
 import com.daunpos.app.ui.theme.Bg
@@ -201,6 +207,8 @@ fun PrinterSettingsScreen(
 
                 QrisSettingsCard(vm = vm)
 
+                BankAccountSettingsCard(vm = vm)
+
                 BankNotificationListenerCard(context = context)
 
                 PaperAndPreferencesCard(
@@ -253,6 +261,10 @@ fun PrinterSettingsScreen(
 
             item {
                 QrisSettingsCard(vm = vm)
+            }
+
+            item {
+                BankAccountSettingsCard(vm = vm)
             }
 
             item {
@@ -365,13 +377,13 @@ private fun PrinterStatusCard(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (bluetooth.connected) GreenSoft else DangerSoft),
+                        .background(if (bluetooth.connected) GreenSoft else Color(0xFFF5F6F7)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.Print,
                         contentDescription = null,
-                        tint = if (bluetooth.connected) GreenDeep else Danger,
+                        tint = if (bluetooth.connected) GreenDeep else InkSoft,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -384,7 +396,13 @@ private fun PrinterStatusCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
-                    StatusBadge(if (bluetooth.connected) "Terhubung" else "Terputus", positive = bluetooth.connected)
+                    if (bluetooth.connected) {
+                        StatusBadge("Terhubung", positive = true)
+                    } else {
+                        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFF5F6F7)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                            Text("Belum dihubungkan", style = MaterialTheme.typography.labelSmall, color = InkSoft, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
                 if (bluetooth.connected) {
                     OutlinedButton(
@@ -423,7 +441,30 @@ private fun ScannerCard(
             .padding(18.dp)
     ) {
         Column {
-            Text("Pemindai Perangkat $selectedType", style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
+            var showConnectionInfo by remember(selectedType) { mutableStateOf(false) }
+            if (showConnectionInfo) {
+                InfoDialog(
+                    title = "Koneksi $selectedType",
+                    message = when (selectedType) {
+                        "Bluetooth" -> "Nyalakan printer dan Bluetooth perangkat. Aktifkan mode pairing, tekan Cari Perangkat, lalu pilih Hubungkan."
+                        "USB" -> "Sambungkan printer thermal yang mendukung USB menggunakan kabel dan adaptor OTG yang sesuai. Pastikan printer menyala."
+                        else -> "Gunakan printer yang mendukung LAN/Wi-Fi. Sambungkan printer dan perangkat ke jaringan yang sama, lalu siapkan alamat IP serta port printer."
+                    },
+                    onDismiss = { showConnectionInfo = false }
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Pemindai Perangkat $selectedType",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Ink,
+                    fontWeight = FontWeight.Bold
+                )
+                InfoAction(contentDescription = "Info koneksi $selectedType") {
+                    showConnectionInfo = true
+                }
+            }
             Spacer(Modifier.height(12.dp))
 
             if (selectedType == "Bluetooth") {
@@ -458,7 +499,7 @@ private fun ScannerCard(
 
                 if (devices.isEmpty() && !bluetooth.discovering) {
                     Text(
-                        "Belum ada perangkat terdeteksi. Pastikan Bluetooth aktif dan printer dalam mode pairing.",
+                        "Belum ada perangkat. Periksa Bluetooth dan mode pairing.",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSoft
                     )
@@ -514,7 +555,7 @@ private fun ScannerCard(
                 ) {
                     Icon(Icons.Filled.Usb, contentDescription = null, tint = InkSoft, modifier = Modifier.size(36.dp))
                     Spacer(Modifier.height(8.dp))
-                    Text("Hubungkan kabel USB OTG printer thermal ke port USB tablet/smartphone.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                    Text("Koneksi printer melalui USB OTG.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
                 }
             } else {
                 Column(
@@ -523,7 +564,7 @@ private fun ScannerCard(
                 ) {
                     Icon(Icons.Filled.Wifi, contentDescription = null, tint = InkSoft, modifier = Modifier.size(36.dp))
                     Spacer(Modifier.height(8.dp))
-                    Text("Masukkan alamat IP printer thermal dapur (LAN / Wi-Fi POS): e.g. 192.168.1.200:9100", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+                    Text("Koneksi printer melalui jaringan lokal.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
                 }
             }
         }
@@ -571,17 +612,11 @@ private fun PaperAndPreferencesCard(
 
             ToggleRow(
                 title = "Cetak Struk Otomatis",
-                subtitle = "Cetak otomatis setelah pembayaran berhasil",
+                subtitle = "Setelah pembayaran",
                 checked = receipt.autoPrint,
                 onChecked = { onUpdateReceipt(receipt.copy(autoPrint = it)) }
             )
-            Spacer(Modifier.height(10.dp))
-            ToggleRow(
-                title = "Buka Laci Kasir (Cash Drawer)",
-                subtitle = "Kirim pulsa ESC/POS laci kasir saat bayar tunai",
-                checked = receipt.cashDrawer,
-                onChecked = { onUpdateReceipt(receipt.copy(cashDrawer = it)) }
-            )
+            // Cash drawer control intentionally excluded for the single-owner product scope.
         }
     }
 }
@@ -621,6 +656,15 @@ private fun QrisSettingsCard(
     var input by remember(staticQris) { mutableStateOf(staticQris) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
     var showTutorialDialog by remember { mutableStateOf(false) }
+    var showQrisInfo by remember { mutableStateOf(false) }
+
+    if (showQrisInfo) {
+        InfoDialog(
+            title = "QRIS Dinamis",
+            message = "Simpan QRIS statis merchant yang valid. DaunPOS dapat membuat QR dengan nominal transaksi saat checkout. Periksa nama merchant dan hasil pemindaian sebelum digunakan.",
+            onDismiss = { showQrisInfo = false }
+        )
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -695,19 +739,15 @@ private fun QrisSettingsCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Konversi QRIS Statis UMKM ke Dinamis",
+                        "QRIS pembayaran toko",
                         style = MaterialTheme.typography.labelSmall,
                         color = InkSoft
                     )
                 }
+                InfoAction(contentDescription = "Info QRIS") {
+                    showQrisInfo = true
+                }
             }
-
-            Text(
-                "Masukkan string QRIS Statis toko Anda (BCA, GoPay, ShopeePay, Mandiri, OVO, dll). Sistem akan otomatis menambahkan nominal transaksi belanja pelanggan sehingga pembayaran terkunci akurat.",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSoft,
-                lineHeight = 18.sp
-            )
 
             // Tombol Shortcut: Scan Foto QRIS & Panduan Tutorial
             Row(
@@ -931,13 +971,18 @@ private fun StoreProfileSummaryCard(
                             fontWeight = FontWeight.Bold,
                             color = Ink
                         )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "${profile.address} · ${profile.phoneNumber}",
-                            fontSize = 11.sp,
-                            color = InkSoft,
-                            maxLines = 1
-                        )
+                        val profileDetails = listOf(profile.address, profile.phoneNumber)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                        if (profileDetails.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = profileDetails,
+                                fontSize = 11.sp,
+                                color = InkSoft,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
 
@@ -980,6 +1025,146 @@ private fun StoreProfileSummaryCard(
 }
 
 @Composable
+private fun BankAccountSettingsCard(vm: DaunPOSViewModel) {
+    val saved by vm.bankAccountSettings.collectAsState()
+    var bankName by remember(saved) { mutableStateOf(saved.bankName) }
+    var accountNumber by remember(saved) { mutableStateOf(saved.accountNumber) }
+    var accountHolder by remember(saved) { mutableStateOf(saved.accountHolder) }
+    var feedback by remember { mutableStateOf<String?>(null) }
+    var feedbackIsError by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(false) }
+
+    if (showInfo) {
+        InfoDialog(
+            title = "Rekening Transfer",
+            message = "Isi rekening bank milik usaha. Informasi ini disimpan di perangkat dan hanya ditampilkan pada checkout saat metode Transfer Bank dipilih.",
+            onDismiss = { showInfo = false }
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .padding(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GreenSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AccountBalance,
+                        contentDescription = null,
+                        tint = GreenDeep,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Rekening Bank",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Ink,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (saved.isConfigured) "Siap untuk pembayaran transfer" else "Belum diatur",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (saved.isConfigured) GreenDeep else InkSoft
+                    )
+                }
+                InfoAction(contentDescription = "Info rekening bank") {
+                    showInfo = true
+                }
+            }
+
+            OutlinedTextField(
+                value = bankName,
+                onValueChange = {
+                    bankName = it.take(40)
+                    feedback = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nama Bank") },
+                placeholder = { Text("Contoh: BCA") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            OutlinedTextField(
+                value = accountNumber,
+                onValueChange = {
+                    accountNumber = it.filter(Char::isDigit).take(30)
+                    feedback = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nomor Rekening") },
+                placeholder = { Text("Masukkan nomor rekening") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            OutlinedTextField(
+                value = accountHolder,
+                onValueChange = {
+                    accountHolder = it.take(60)
+                    feedback = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Atas Nama") },
+                placeholder = { Text("Nama pemilik rekening") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            feedback?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (feedbackIsError) Danger else GreenDeep,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Button(
+                onClick = {
+                    val candidate = BankAccountSettings(
+                        bankName = bankName,
+                        accountNumber = accountNumber,
+                        accountHolder = accountHolder
+                    )
+                    val validation = candidate.validationError()
+                    if (validation != null) {
+                        feedback = validation
+                        feedbackIsError = true
+                    } else {
+                        vm.updateBankAccountSettings(candidate)
+                        feedback = "Rekening berhasil disimpan."
+                        feedbackIsError = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GreenDeep,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Simpan Rekening", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
 private fun BankNotificationListenerCard(
     context: android.content.Context
 ) {
@@ -989,6 +1174,15 @@ private fun BankNotificationListenerCard(
     }
     val isConnected by com.daunpos.app.notification.PaymentNotificationBridge.isServiceConnected.collectAsState()
     val recentList by com.daunpos.app.notification.PaymentNotificationBridge.recentNotifications.collectAsState()
+    var showBankInfo by remember { mutableStateOf(false) }
+
+    if (showBankInfo) {
+        InfoDialog(
+            title = "Verifikasi Pembayaran",
+            message = "DaunPOS dapat membaca notifikasi pembayaran dari aplikasi bank dan e-wallet yang didukung, seperti BCA, Mandiri, BRI, BNI, GoBiz, DANA, OVO, dan ShopeePay. Fitur ini bukan payment gateway. Notifikasi hanya membantu pencocokan; kasir tetap harus memeriksa mutasi resmi dan mengonfirmasi pembayaran.",
+            onDismiss = { showBankInfo = false }
+        )
+    }
 
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -1039,10 +1233,13 @@ private fun BankNotificationListenerCard(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "Deteksi mutasi BCA, Mandiri, BRI, BNI, GoBiz, DANA, OVO, ShopeePay",
+                        text = "Deteksi notifikasi pembayaran",
                         fontSize = 11.sp,
                         color = InkSoft
                     )
+                }
+                InfoAction(contentDescription = "Info verifikasi bank") {
+                    showBankInfo = true
                 }
             }
 
@@ -1185,7 +1382,7 @@ private fun BankNotificationListenerCard(
                 shape = RoundedCornerShape(10.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)
             ) {
-                Text("Kirim Notifikasi Uji Coba (Simulasi BRImo Rp 25.000)", fontSize = 11.sp, color = InkSoft)
+                Text("Uji notifikasi", fontSize = 11.sp, color = InkSoft)
             }
         }
     }

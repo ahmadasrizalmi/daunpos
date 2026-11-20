@@ -24,20 +24,28 @@ class BusinessCategoryTest {
     @Test
     fun testCategoryProperties() {
         val fnb = BusinessCategory.FNB
-        assertEquals(10, fnb.defaultTax)
-        assertTrue(fnb.features.contains("Manajemen Meja"))
-        assertTrue(fnb.features.contains("Dine-In / Take Away"))
+        assertEquals(0, fnb.defaultTax)
+        assertEquals("Menu", fnb.itemLabel)
+        assertTrue(fnb.defaultProductCategories.contains("Kopi"))
+        assertTrue(fnb.features.contains("Meja & Takeaway"))
+        assertFalse(fnb.features.any { it.contains("Split Bill", ignoreCase = true) })
 
         val retail = BusinessCategory.RETAIL
         assertEquals(0, retail.defaultTax)
-        assertTrue(retail.features.contains("Barcode Scanner Cepat"))
-        assertTrue(retail.features.contains("Stok & SKU Realtime"))
+        assertEquals("Barang", retail.itemLabel)
+        assertTrue(retail.defaultProductCategories.contains("Fashion"))
+        assertTrue(retail.features.contains("SKU/Barcode"))
+        assertTrue(retail.features.contains("Stok Barang"))
+        assertFalse(retail.features.any { it.contains("Cetak Label", ignoreCase = true) })
 
         val service = BusinessCategory.SERVICE
         assertEquals(0, service.defaultTax)
-        assertTrue(service.features.contains("Pilihan Staf Pelaksana"))
-        assertTrue(service.features.contains("Durasi Pengerjaan"))
-        assertTrue(service.features.contains("Catatan Layanan"))
+        assertEquals("Layanan", service.itemLabel)
+        assertTrue(service.defaultProductCategories.contains("Perawatan"))
+        assertTrue(service.features.contains("Daftar Layanan"))
+        assertTrue(service.features.contains("Estimasi Durasi"))
+        assertTrue(service.features.contains("Catatan Pesanan"))
+        assertFalse(service.features.any { it.contains("Staf", ignoreCase = true) })
     }
 
     @Test

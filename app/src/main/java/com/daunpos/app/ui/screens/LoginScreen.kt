@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,10 +29,15 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.AlertDialog
+import com.daunpos.app.ui.components.DaunPOSButton as Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +51,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daunpos.app.DaunPOSViewModel
+import com.daunpos.app.ui.components.DaunPOSLogoMark
+import com.daunpos.app.data.PinPolicy
 import com.daunpos.app.data.UserRole
 import com.daunpos.app.ui.theme.Bg
 import com.daunpos.app.ui.theme.Danger
@@ -71,20 +82,29 @@ fun LoginScreen(
     val isTablet = config.isTablet
 
     var pin by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf(UserRole.KASIR) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var requiresPinChange by remember { mutableStateOf(false) }
+    var newPin by remember { mutableStateOf("") }
+    var confirmNewPin by remember { mutableStateOf("") }
+    var pinChangeError by remember { mutableStateOf<String?>(null) }
+    var savingPin by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun submit(pinValue: String) {
-        if (loading) return
+        if (loading || pinValue.length !in 4..6) return
         loading = true
         error = null
         scope.launch {
-            val user = vm.login(pinValue, role)
+            val user = vm.login(pinValue, UserRole.OWNER)
             loading = false
             if (user != null) {
-                onLogin()
+                if (user.requiresPinChange) {
+                    requiresPinChange = true
+                    pinChangeError = "PIN bawaan tidak boleh digunakan untuk operasional."
+                } else {
+                    onLogin()
+                }
             } else {
                 error = "PIN salah. Coba lagi."
                 pin = ""
@@ -93,12 +113,72 @@ fun LoginScreen(
     }
 
     fun pressDigit(d: String) {
-        if (pin.length < 4) {
-            pin += d
-            if (pin.length == 4) {
-                submit(pin)
+        if (loading || pin.length >= 6) return
+        pin += d
+        error = null
+    }
+
+    fun saveNewPin() {
+        if (savingPin) return
+        pinChangeError = when {
+            !PinPolicy.isAcceptableNewPin(newPin) -> "Gunakan PIN 4–6 digit dan hindari PIN bawaan."
+            newPin != confirmNewPin -> "Konfirmasi PIN tidak sama."
+            else -> null
+        }
+        if (pinChangeError != null) return
+
+        savingPin = true
+        scope.launch {
+            val changed = vm.changeCurrentUserPin(newPin)
+            savingPin = false
+            if (changed) {
+                requiresPinChange = false
+                onLogin()
+            } else {
+                pinChangeError = "PIN gagal disimpan. Periksa kembali dan coba lagi."
             }
         }
+    }
+
+    if (requiresPinChange) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Ganti PIN bawaan") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("PIN demonstrasi tidak boleh dipakai untuk operasional. Buat PIN baru untuk akun ini.")
+                    OutlinedTextField(
+                        value = newPin,
+                        onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) newPin = it },
+                        label = { Text("PIN baru (4–6 digit)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = confirmNewPin,
+                        onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) confirmNewPin = it },
+                        label = { Text("Ulangi PIN baru") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    pinChangeError?.let { Text(it, color = Danger, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { saveNewPin() },
+                    enabled = !savingPin,
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenDeep)
+                ) {
+                    if (savingPin) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
+                    else Text("Simpan PIN")
+                }
+            }
+        )
     }
 
     if (isTablet) {
@@ -113,7 +193,8 @@ fun LoginScreen(
                 modifier = Modifier
                     .width(420.dp)
                     .fillMaxHeight()
-                    .background(GreenDeep)
+                    .background(Color.White)
+                    .border(1.dp, Line)
                     .padding(40.dp)
             ) {
                 Column(
@@ -122,25 +203,17 @@ fun LoginScreen(
                 ) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Green),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Filled.Spa, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
-                            }
+                            DaunPOSLogoMark(size = 48.dp)
                             Spacer(Modifier.width(14.dp))
-                            Text("DaunPOS", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                            Text("DaunPOS", style = MaterialTheme.typography.headlineMedium, color = Ink)
                         }
 
                         Spacer(Modifier.height(28.dp))
 
                         Text(
-                            "Kasir kafe yang ringan, rapi, dan siap dipakai di meja mana pun.",
+                            "Kasir usaha yang ringan, rapi, dan siap digunakan setiap hari.",
                             style = MaterialTheme.typography.titleLarge,
-                            color = Color(0xFFD6EFE0),
+                            color = InkSoft,
                             lineHeight = 28.sp
                         )
 
@@ -149,7 +222,7 @@ fun LoginScreen(
                         FeatureBenefitRow(
                             icon = Icons.Filled.Bolt,
                             title = "Transaksi kilat",
-                            desc = "Grid menu & pembayaran 3 detik"
+                            desc = "Keranjang dan checkout dalam satu alur"
                         )
                         Spacer(Modifier.height(20.dp))
                         FeatureBenefitRow(
@@ -161,14 +234,14 @@ fun LoginScreen(
                         FeatureBenefitRow(
                             icon = Icons.Filled.Print,
                             title = "Cetak struk",
-                            desc = "Bluetooth, USB, atau LAN"
+                            desc = "Printer thermal Bluetooth"
                         )
                     }
 
                     Text(
-                        "DaunPOS v2.0 · Versi Produksi Kafe",
+                        "DaunPOS · Offline-first POS",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF88B89E)
+                        color = InkSoft
                     )
                 }
             }
@@ -178,24 +251,17 @@ fun LoginScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 16.dp, horizontal = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 PinKeypadContent(
                     pin = pin,
-                    role = role,
                     error = error,
                     loading = loading,
                     isTablet = true,
                     onPressDigit = { pressDigit(it) },
                     onDelete = { pin = pin.dropLast(1); error = null },
-                    onToggleRole = {
-                        role = if (role == UserRole.KASIR) UserRole.OWNER else UserRole.KASIR
-                        pin = ""
-                        error = null
-                    },
-                    onSetupNewStore = onSetupNewStore
+                    onSubmit = { submit(pin) }
                 )
             }
         }
@@ -210,17 +276,11 @@ fun LoginScreen(
         ) {
             PinKeypadContent(
                 pin = pin,
-                role = role,
                 error = error,
                 loading = loading,
                 onPressDigit = { pressDigit(it) },
                 onDelete = { pin = pin.dropLast(1); error = null },
-                onToggleRole = {
-                    role = if (role == UserRole.KASIR) UserRole.OWNER else UserRole.KASIR
-                    pin = ""
-                    error = null
-                },
-                onSetupNewStore = onSetupNewStore
+                onSubmit = { submit(pin) }
             )
         }
     }
@@ -237,15 +297,15 @@ private fun FeatureBenefitRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color(0x33FFFFFF)),
+                .background(GreenSoft),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = GreenDeep, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(desc, style = MaterialTheme.typography.bodySmall, color = Color(0xFFAED4BF))
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Ink, fontWeight = FontWeight.Bold)
+            Text(desc, style = MaterialTheme.typography.bodySmall, color = InkSoft)
         }
     }
 }
@@ -253,14 +313,12 @@ private fun FeatureBenefitRow(
 @Composable
 private fun PinKeypadContent(
     pin: String,
-    role: UserRole,
     error: String?,
     loading: Boolean,
     isTablet: Boolean = false,
     onPressDigit: (String) -> Unit,
     onDelete: () -> Unit,
-    onToggleRole: () -> Unit,
-    onSetupNewStore: () -> Unit
+    onSubmit: () -> Unit
 ) {
     val iconSize = if (isTablet) 52.dp else 76.dp
     val keySize = if (isTablet) 54.dp else 64.dp
@@ -269,30 +327,20 @@ private fun PinKeypadContent(
     val spacerPin = if (isTablet) 14.dp else 24.dp
 
     Column(
-        modifier = Modifier.padding(horizontal = if (isTablet) 12.dp else 24.dp),
+        modifier = Modifier
+            .padding(horizontal = if (isTablet) 12.dp else 24.dp)
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(iconSize)
-                .clip(RoundedCornerShape(if (isTablet) 16.dp else 24.dp))
-                .background(Green),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Storefront,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(if (isTablet) 28.dp else 38.dp)
-            )
-        }
+        DaunPOSLogoMark(size = iconSize)
 
         Spacer(Modifier.height(spacerTop))
         Text("DaunPOS", style = if (isTablet) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium, color = Ink)
         Spacer(Modifier.height(2.dp))
         Text(
-            text = if (role == UserRole.OWNER) "Masuk sebagai Pemilik" else "Masuk sebagai Kasir",
+            text = "Masuk sebagai Pemilik",
             style = MaterialTheme.typography.bodySmall,
             color = InkSoft,
             textAlign = TextAlign.Center
@@ -302,7 +350,7 @@ private fun PinKeypadContent(
 
         // PIN dots
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            repeat(4) { i ->
+            repeat(6) { i ->
                 Box(
                     modifier = Modifier
                         .size(16.dp)
@@ -380,41 +428,36 @@ private fun PinKeypadContent(
 
         Spacer(Modifier.height(if (isTablet) 12.dp else 22.dp))
 
-        // Role toggle
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(GreenSoft)
-                .clickable { onToggleRole() }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            Text(
-                if (role == UserRole.KASIR) "Masuk sebagai Pemilik" else "Masuk sebagai Kasir",
-                style = MaterialTheme.typography.labelLarge,
-                color = GreenDeep,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
         Text(
-            text = if (role == UserRole.KASIR) "PIN kasir: 1234" else "PIN pemilik: 0000",
+            text = "Masukkan PIN 4–6 digit",
             style = MaterialTheme.typography.labelSmall,
             color = InkSoft
         )
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
 
-        Text(
-            text = "Setup Ulang Toko / Ganti Jenis Usaha",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = GreenDeep,
+        Button(
+            onClick = onSubmit,
+            enabled = !loading && pin.length in 4..6,
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onSetupNewStore() }
-                .padding(vertical = 6.dp, horizontal = 12.dp)
-        )
+                .fillMaxWidth()
+                .widthIn(max = 240.dp)
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = GreenDeep,
+                contentColor = Color.White,
+                disabledContainerColor = GreenSoft,
+                disabledContentColor = InkSoft
+            )
+        ) {
+            if (loading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
+            } else {
+                Text("Masuk", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
     }
 }

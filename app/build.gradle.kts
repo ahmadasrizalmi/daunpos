@@ -13,21 +13,30 @@ android {
         applicationId = "com.daunpos.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.0.0"
+        versionCode = 8
+        versionName = "2.1.1"
     }
 
     signingConfigs {
         // Keystore tidak di-commit ke repo (lihat .gitignore).
         // Untuk rilis, sediakan keystore/daunpos-release.jks secara lokal atau via CI secret.
         val keystoreFile = rootProject.file("keystore/daunpos-release.jks")
-        if (keystoreFile.exists()) {
+        val releaseStorePassword = System.getenv("DAUNPOS_STORE_PASSWORD")
+        val releaseKeyAlias = System.getenv("DAUNPOS_KEY_ALIAS")
+        val releaseKeyPassword = System.getenv("DAUNPOS_KEY_PASSWORD")
+        if (keystoreFile.exists() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
             create("release") {
                 storeFile = keystoreFile
-                storePassword = System.getenv("DAUNPOS_STORE_PASSWORD") ?: "daunpos123"
-                keyAlias = System.getenv("DAUNPOS_KEY_ALIAS") ?: "daunpos"
-                keyPassword = System.getenv("DAUNPOS_KEY_PASSWORD") ?: "daunpos123"
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
+        } else {
+            logger.warn("Release signing is not configured. Set DAUNPOS_STORE_PASSWORD, DAUNPOS_KEY_ALIAS, and DAUNPOS_KEY_PASSWORD to produce a signed release APK.")
         }
     }
 

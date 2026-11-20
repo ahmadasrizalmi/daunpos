@@ -5,6 +5,7 @@ import com.daunpos.app.data.PaymentMethod
 import com.daunpos.app.data.ReceiptSettings
 import com.daunpos.app.data.Transaction
 import com.daunpos.app.data.formatRupiah
+import com.daunpos.app.data.formatDurationMinutes
 import com.daunpos.app.data.qris.QrisConverter
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -27,9 +28,6 @@ object ThermalPrinter {
     fun doubleHeightWidth(on: Boolean) = byteArrayOf(0x1D, 0x21, (if (on) 0x11 else 0x00).toByte())
     fun feed(lines: Int) = ByteArray(lines) { 0x0A }
     fun cut() = byteArrayOf(0x1D, 0x56, 0x42, 0x00)
-    // Standar ESC/POS cash drawer kick pulse: ESC p m t1 t2 (pin 2 & pin 5)
-    fun openCashDrawer() = byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte())
-
     fun buildReceiptBytes(tx: Transaction, settings: ReceiptSettings): ByteArray {
         val chars = if (settings.paperWidth == 80) CHARS_80 else CHARS_58
         val out = ByteArrayOutputStream()
@@ -41,11 +39,6 @@ object ThermalPrinter {
         fun right(s: String) = line(s.padStart(chars))
 
         val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID")).format(Date(tx.dateTime))
-
-        // Trigger laci kasir jika diaktifkan dan metode pembayaran Tunai
-        if (settings.cashDrawer && tx.paymentMethod == PaymentMethod.CASH) {
-            w(openCashDrawer())
-        }
 
         w(init())
         w(alignCenter())
@@ -68,9 +61,15 @@ object ThermalPrinter {
         line("Waktu : $date")
         center("-".repeat(chars))
         tx.items.forEach { item ->
-            line(ascii(item.name).take(chars - 6) + " x" + item.quantity)
+            line(ascii(item.name).take(chars - 6) + " x" + item.quantity + " " + ascii(item.unitLabel).take(10))
             if (item.staffName.isNotBlank() && !destValue.contains(item.staffName, ignoreCase = true)) {
                 line("  * Staf: " + ascii(item.staffName).take(chars - 10))
+            }
+            if (item.description.isNotBlank()) {
+                line("  * Detail: " + ascii(item.description).take(chars - 10))
+            }
+            if (item.durationMinutes > 0) {
+                line("  * Durasi: " + ascii(formatDurationMinutes(item.durationMinutes)))
             }
             if (item.note.isNotBlank()) {
                 line("  * Ket : " + ascii(item.note).take(chars - 10))
@@ -219,7 +218,6 @@ object ThermalPrinter {
         w(alignLeft())
         line("Koneksi printer berhasil.")
         line("Ukuran kertas: ${settings.paperWidth}mm")
-        line("Laci kasir: ${if (settings.cashDrawer) "Aktif" else "Nonaktif"}")
         line("")
         line("Jika struk ini tercetak, berarti")
         line("printer siap digunakan di POS.")

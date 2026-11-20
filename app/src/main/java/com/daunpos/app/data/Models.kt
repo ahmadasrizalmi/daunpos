@@ -9,31 +9,46 @@ enum class BusinessCategory(
     val subtitle: String,
     val description: String,
     val features: List<String>,
-    val defaultTax: Int
+    val defaultTax: Int,
+    val itemLabel: String,
+    val defaultProductCategories: List<String>
 ) {
     FNB(
         id = "FNB",
         title = "Kuliner & F&B",
-        subtitle = "Resto, Kafe, Angkringan, Bakery",
-        description = "Pengaturan nomor meja, pesanan dine-in & take away, cetak struk dapur, dan split bill.",
-        features = listOf("Manajemen Meja", "Dine-In / Take Away", "Struk Dapur", "Split Bill"),
-        defaultTax = 10
+        subtitle = "Restoran, kafe, bakery, warung, angkringan",
+        description = "Kelola menu dan kategori, catat pesanan per meja atau takeaway, atur stok, pembayaran, dan cetak struk.",
+        features = listOf("Meja & Takeaway", "Stok Menu", "Pembayaran & Struk"),
+        defaultTax = 0,
+        itemLabel = "Menu",
+        defaultProductCategories = listOf("Kopi", "Non-Kopi", "Makanan Berat", "Snack", "Dessert", "Lainnya")
     ),
     RETAIL(
         id = "RETAIL",
         title = "Retail & Toko",
-        subtitle = "Kelontong, Butik, Minimarket, Petshop",
-        description = "Barcode scanner cepat, manajemen inventaris stok & SKU realtime, varian harga, dan cetak label rak.",
-        features = listOf("Barcode Scanner Cepat", "Stok & SKU Realtime", "Grosir / Varian", "Cetak Label Rak"),
-        defaultTax = 0
+        subtitle = "Kelontong, butik, minimarket, petshop, elektronik",
+        description = "Kelola barang, SKU/barcode untuk input cepat, stok, harga, transaksi, dan laporan penjualan.",
+        features = listOf("SKU/Barcode", "Stok Barang", "Laporan Penjualan"),
+        defaultTax = 0,
+        itemLabel = "Barang",
+        defaultProductCategories = listOf(
+            "Sembako", "Makanan", "Minuman", "Kebutuhan Harian", "Rumah Tangga",
+            "Fashion", "Kecantikan", "Petshop", "Elektronik", "Perlengkapan Bayi",
+            "Alat Tulis", "Otomotif", "Aksesori", "Lainnya"
+        )
     ),
     SERVICE(
         id = "SERVICE",
         title = "Jasa & Layanan",
-        subtitle = "Studio Foto, Barbershop, Salon, Servis, Laundry",
-        description = "Pilihan staf pelaksana (fotografer/teknisi/stylist), estimasi durasi, catatan khusus order, dan struk fleksibel.",
-        features = listOf("Pilihan Staf Pelaksana", "Durasi Pengerjaan", "Pencatatan Komisi", "Catatan Layanan"),
-        defaultTax = 0
+        subtitle = "Salon, barbershop, laundry, servis, studio foto",
+        description = "Kelola daftar layanan, harga, estimasi durasi, catatan permintaan pelanggan, pembayaran, dan laporan.",
+        features = listOf("Daftar Layanan", "Estimasi Durasi", "Catatan Pesanan"),
+        defaultTax = 0,
+        itemLabel = "Layanan",
+        defaultProductCategories = listOf(
+            "Salon & Grooming", "Laundry", "Perbaikan", "Fotografi",
+            "Konsultasi", "Kursus", "Transportasi", "Perawatan", "Lainnya"
+        )
     );
 
     companion object {
@@ -43,15 +58,32 @@ enum class BusinessCategory(
 }
 
 data class StoreProfile(
-    val storeName: String = "DaunPOS",
+    val storeName: String = "Nama Toko",
     val businessCategory: BusinessCategory = BusinessCategory.FNB,
-    val address: String = "Jl. Daun Hijau No. 8",
-    val phoneNumber: String = "0812-3456-7890",
-    val taxPercentage: Int = 10,
+    val address: String = "",
+    val phoneNumber: String = "",
+    val taxPercentage: Int = 0,
     val staticQris: String = "",
     val isMultiUserEnabled: Boolean = false,
     val isOnboardingCompleted: Boolean = false
 )
+
+data class BankAccountSettings(
+    val bankName: String = "",
+    val accountNumber: String = "",
+    val accountHolder: String = ""
+) {
+    val isConfigured: Boolean
+        get() = validationError() == null
+
+    fun validationError(): String? = when {
+        bankName.isBlank() -> "Nama bank wajib diisi."
+        accountNumber.length !in 5..30 || accountNumber.any { !it.isDigit() } ->
+            "Nomor rekening harus terdiri dari 5–30 angka."
+        accountHolder.isBlank() -> "Nama pemilik rekening wajib diisi."
+        else -> null
+    }
+}
 
 data class Product(
     val id: String,
@@ -59,13 +91,15 @@ data class Product(
     val category: String,
     val price: Int,
     val costPrice: Int = 0,
-    val available: Boolean = true,
-    val stock: Int = 50,
+    val available: Boolean = false,
+    val stock: Int = 0,
     val barcodeSku: String = "",
     val durationMinutes: Int = 0,
     val emoji: String = "🍽️",
     val colorHex: Long = 0xFFE7F4EA,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val description: String = "",
+    val unitLabel: String = "unit"
 )
 
 data class CartItem(
@@ -89,7 +123,12 @@ data class OrderItem(
     val quantity: Int,
     val emoji: String,
     val note: String = "",
-    val staffName: String = ""
+    val staffName: String = "",
+    // Snapshot product details at checkout so later catalog edits do not rewrite old receipts.
+    val costPrice: Int? = null,
+    val unitLabel: String = "unit",
+    val description: String = "",
+    val durationMinutes: Int = 0
 ) {
     val total: Int get() = price * quantity
 }
@@ -118,6 +157,8 @@ data class Transaction(
     val destinationLabel: String
         get() = when {
             tableNumber.startsWith("Staf:") || tableNumber.startsWith("Staff:") || tableNumber.startsWith("Petugas:") -> "Staf"
+            tableNumber == "Layanan" -> "Layanan"
+            tableNumber == "Take Away" -> "Pesanan"
             tableNumber.startsWith("Pelanggan") || tableNumber in listOf("Member", "Grosir", "Reseller", "Online / Kurir") -> "Pelanggan"
             else -> "Meja"
         }
@@ -145,17 +186,12 @@ data class ShiftRecord(
 
 data class ReceiptSettings(
     val paperWidth: Int = 58,
-    val autoPrint: Boolean = true,
-    val cashDrawer: Boolean = false,
-    val showLogo: Boolean = true,
-    val showQR: Boolean = true,
+    val autoPrint: Boolean = false,
+    val showLogo: Boolean = false,
+    val showQR: Boolean = false,
     val taxPercentage: Int = 0,
-    val headerLines: List<String> = listOf(
-        "DaunPOS Coffee & Eatery",
-        "Jl. Daun Hijau No. 8, Bandung",
-        "0812-3456-7890"
-    ),
-    val footerText: String = "Terima kasih sudah berkunjung!\nPassword Wi-Fi: kopi123"
+    val headerLines: List<String> = listOf("Nama Toko"),
+    val footerText: String = "Terima kasih telah berbelanja."
 )
 
 data class PrinterSettings(
@@ -163,11 +199,7 @@ data class PrinterSettings(
     val deviceName: String = "",
     val deviceAddress: String = "",
     val scanType: String = "Bluetooth",
-    val foundDevices: List<String> = listOf(
-        "RPP02N Bluetooth Printer",
-        "DAUNPOS-KITCHEN",
-        "58BT-Thermal-01"
-    )
+    val foundDevices: List<String> = emptyList()
 )
 
 val CATEGORIES = listOf("Semua", "Kopi", "Non-Kopi", "Makanan Berat", "Snack", "Dessert")
@@ -176,16 +208,19 @@ enum class UserRole { KASIR, OWNER }
 
 data class User(
     val username: String,
-    val role: UserRole
+    val role: UserRole,
+    val requiresPinChange: Boolean = false
 ) {
     val displayName: String
         get() = if (role == UserRole.OWNER) "Pemilik" else "Kasir"
 }
 
 object CurrencyUtils {
-    fun formatRupiah(amount: Int): String {
+    fun formatRupiah(amount: Int): String = formatRupiah(amount.toLong())
+
+    fun formatRupiah(amount: Long): String {
         val nf = NumberFormat.getNumberInstance(Locale("id", "ID"))
-        return "Rp " + nf.format(amount.toLong())
+        return "Rp " + nf.format(amount)
     }
 
     fun formatNumber(amount: Int): String {
@@ -195,4 +230,17 @@ object CurrencyUtils {
 }
 
 fun formatRupiah(amount: Int): String = CurrencyUtils.formatRupiah(amount)
+fun formatRupiah(amount: Long): String = CurrencyUtils.formatRupiah(amount)
 fun formatNumber(amount: Int): String = CurrencyUtils.formatNumber(amount)
+
+fun formatDurationMinutes(totalMinutes: Int): String {
+    if (totalMinutes <= 0) return ""
+    val days = totalMinutes / 1440
+    val hours = (totalMinutes % 1440) / 60
+    val minutes = totalMinutes % 60
+    return buildList {
+        if (days > 0) add("$days hari")
+        if (hours > 0) add("$hours jam")
+        if (minutes > 0) add("$minutes menit")
+    }.joinToString(" ")
+}

@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +29,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material3.Button
+import com.daunpos.app.ui.components.DaunPOSButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,6 +65,7 @@ fun BusinessCategoryScreen(
 ) {
     var selectedCategory by remember { mutableStateOf(initialCategory) }
     val scrollState = rememberScrollState()
+    val compactLayout = LocalConfiguration.current.screenWidthDp >= 600
 
     Box(
         modifier = Modifier
@@ -74,8 +78,8 @@ fun BusinessCategoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(bottom = 88.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Top Navigation Bar
@@ -115,7 +119,7 @@ fun BusinessCategoryScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(if (compactLayout) 12.dp else 20.dp))
 
                 Text(
                     text = "Pilih Kategori Bisnis",
@@ -133,38 +137,48 @@ fun BusinessCategoryScreen(
                     lineHeight = 20.sp
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(if (compactLayout) 12.dp else 24.dp))
 
                 // 3 Hero Category Cards
                 BusinessCategoryCard(
                     category = BusinessCategory.FNB,
+                    compactLayout = compactLayout,
                     icon = Icons.Filled.Restaurant,
                     isSelected = selectedCategory == BusinessCategory.FNB,
                     onClick = { selectedCategory = BusinessCategory.FNB }
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(if (compactLayout) 6.dp else 10.dp))
 
                 BusinessCategoryCard(
                     category = BusinessCategory.RETAIL,
+                    compactLayout = compactLayout,
                     icon = Icons.Filled.Storefront,
                     isSelected = selectedCategory == BusinessCategory.RETAIL,
                     onClick = { selectedCategory = BusinessCategory.RETAIL }
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(if (compactLayout) 6.dp else 10.dp))
 
                 BusinessCategoryCard(
                     category = BusinessCategory.SERVICE,
+                    compactLayout = compactLayout,
                     icon = Icons.Filled.ContentCut,
                     isSelected = selectedCategory == BusinessCategory.SERVICE,
                     onClick = { selectedCategory = BusinessCategory.SERVICE }
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        }
 
-            // Action Button
+        // Keep the primary action reachable while the category list scrolls.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Bg)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
             Button(
                 onClick = { onCategorySelected(selectedCategory) },
                 modifier = Modifier
@@ -198,10 +212,12 @@ fun BusinessCategoryScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BusinessCategoryCard(
     category: BusinessCategory,
     icon: ImageVector,
+    compactLayout: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -221,7 +237,7 @@ private fun BusinessCategoryCard(
                 shape = RoundedCornerShape(20.dp)
             )
             .clickable { onClick() }
-            .padding(18.dp)
+            .padding(if (compactLayout) 10.dp else 14.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -229,10 +245,13 @@ private fun BusinessCategoryCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(if (compactLayout) 40.dp else 48.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(iconBgColor),
                         contentAlignment = Alignment.Center
@@ -245,20 +264,25 @@ private fun BusinessCategoryCard(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(if (compactLayout) 10.dp else 14.dp))
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = category.title,
-                            fontSize = 17.sp,
+                            fontSize = if (compactLayout) 16.sp else 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Ink
+                            color = Ink,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = category.subtitle,
-                            fontSize = 12.sp,
+                            fontSize = if (compactLayout) 11.sp else 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = InkSoft
+                            color = InkSoft,
+                            maxLines = 2,
+                            lineHeight = if (compactLayout) 14.sp else 16.sp,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip
                         )
                     }
                 }
@@ -282,28 +306,31 @@ private fun BusinessCategoryCard(
                                 text = "Terpilih",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(if (compactLayout) 4.dp else 8.dp))
 
             Text(
                 text = category.description,
-                fontSize = 13.sp,
+                fontSize = if (compactLayout) 12.sp else 13.sp,
                 color = InkSoft,
-                lineHeight = 18.sp
+                lineHeight = if (compactLayout) 16.sp else 18.sp
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(if (compactLayout) 6.dp else 10.dp))
 
-            // Feature tag pills
-            Row(
+            // Feature tags wrap to the next line on narrow phones.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 category.features.take(3).forEach { feature ->
                     Box(
@@ -311,7 +338,7 @@ private fun BusinessCategoryCard(
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isSelected) GreenSoft else Bg)
                             .border(1.dp, if (isSelected) GreenDeep.copy(alpha = 0.2f) else Line, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = if (compactLayout) 3.dp else 4.dp)
                     ) {
                         Text(
                             text = feature,

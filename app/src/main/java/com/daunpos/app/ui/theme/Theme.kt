@@ -5,6 +5,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
+
+private val DaunShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(50),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(24.dp)
+)
 
 private val DaunColorScheme = lightColorScheme(
     primary = Green,
@@ -21,9 +31,14 @@ private val DaunColorScheme = lightColorScheme(
     onBackground = Ink,
     surface = Surface,
     onSurface = Ink,
+    surfaceContainerLowest = Surface,
+    surfaceContainerLow = Surface,
+    surfaceContainer = Surface,
+    surfaceContainerHigh = Surface,
+    surfaceContainerHighest = Surface,
     surfaceVariant = GreenSoft,
     onSurfaceVariant = InkSoft,
-    outline = Line,
+    outline = Color(0xFFD9DDE2),
     outlineVariant = Line,
     error = Danger,
     onError = Color.White,
@@ -37,6 +52,7 @@ fun DaunPOSTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = DaunColorScheme,
         typography = DaunTypography,
+        shapes = DaunShapes,
         content = content
     )
 }

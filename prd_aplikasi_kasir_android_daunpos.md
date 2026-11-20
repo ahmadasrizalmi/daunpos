@@ -1,5 +1,7 @@
 # Product Requirements Document (PRD): DaunPOS (Aplikasi Kasir Cafe Sederhana)
 
+> Dokumen ini adalah PRD awal dengan fokus F&B. Scope produk terbaru untuk POS personal multi-kategori dan offline-first berada di docs/PRODUCT_SCOPE_PERSONAL_POS.md. Jika terdapat perbedaan, dokumen scope terbaru menjadi acuan.
+
 ## 1. Gambaran Umum Produk (Overview)
 **DaunPOS** adalah aplikasi kasir berbasis Android yang dirancang khusus untuk operasional kafe kecil dan menengah. Aplikasi ini mengutamakan kecepatan transaksi, tampilan antarmuka (UI/UX) yang bersih, modern, dan ramah pengguna (user-friendly), serta dilengkapi dengan fitur utama laporan penjualan yang mendalam dan integrasi pencetakan struk yang mudah.
 
