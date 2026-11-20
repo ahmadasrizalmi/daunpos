@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $keystorePath = Join-Path $projectRoot "keystore\daunpos-release.jks"
 $builtApk = Join-Path $projectRoot "app\build\outputs\apk\release\app-release.apk"
-$targetApk = Join-Path $projectRoot "release\daunpos-v2.1.1-release.apk"
+$targetApk = Join-Path $projectRoot "release\daunpos-v2.1.2-release.apk"
 $apksigner = "C:\Android\Sdk\build-tools\36.0.0\apksigner.bat"
 $aapt = "C:\Android\Sdk\build-tools\36.0.0\aapt.exe"
 $expectedCertificate = "fdf6d9296840427110f459ba2dd03622468efdabff0e61842750eb82bab7f6e8"
@@ -27,7 +27,7 @@ if (-not (Test-Path $keystorePath)) { throw "Keystore tidak ditemukan: $keystore
 if (-not (Test-Path $apksigner)) { throw "Android apksigner tidak ditemukan: $apksigner" }
 if (Test-Path $targetApk) { throw "File rilis sudah ada. Amankan/ubah nama file lama sebelum membuat rilis baru: $targetApk" }
 
-Write-Host "DaunPOS release 2.1.1 (versionCode 8)"
+Write-Host "DaunPOS release 2.1.2 (versionCode 9)"
 $storePasswordSecure = $null
 $keyPasswordSecure = $null
 
@@ -65,7 +65,7 @@ try {
 
     $badging = cmd.exe /c "`"$aapt`" dump badging `"$builtApk`""
     $packageLine = ($badging | Select-String "^package:").Line
-    if ($packageLine -notmatch "name='com.daunpos.app'.*versionCode='8'.*versionName='2.1.1'") {
+    if ($packageLine -notmatch "name='com.daunpos.app'.*versionCode='9'.*versionName='2.1.2'") {
         throw "Identitas APK tidak sesuai target rilis: $packageLine"
     }
 
@@ -76,7 +76,7 @@ try {
     Write-Host ""
     Write-Host "SIGNED RELEASE BERHASIL"
     Write-Host "File       : $targetApk"
-    Write-Host "Versi      : 2.1.1 (8)"
+    Write-Host "Versi      : 2.1.2 (9)"
     Write-Host "Ukuran     : $sizeMb MB"
     Write-Host "SHA-256    : $hash"
     Write-Host "Sertifikat : cocok dengan rilis DaunPOS sebelumnya."
